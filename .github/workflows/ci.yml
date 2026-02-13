@@ -14,4 +14,5 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
+      - run: chmod +x gradlew
       - run: ./gradlew test
