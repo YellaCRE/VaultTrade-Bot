@@ -11,15 +11,15 @@ import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
-import com.vaulttradebot.domain.shared.Market;
-import com.vaulttradebot.domain.shared.Money;
-import com.vaulttradebot.domain.shared.Order;
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
+import com.vaulttradebot.domain.shared.order.Order;
 import com.vaulttradebot.domain.shared.Position;
 import com.vaulttradebot.domain.execution.IdempotencyService;
-import com.vaulttradebot.domain.ops.BotConfig;
-import com.vaulttradebot.domain.ops.BotRunState;
-import com.vaulttradebot.domain.ops.BotStatusSnapshot;
-import com.vaulttradebot.domain.ops.MetricsSnapshot;
+import com.vaulttradebot.domain.shared.bot.BotConfig;
+import com.vaulttradebot.domain.shared.bot.BotRunState;
+import com.vaulttradebot.domain.shared.bot.BotStatusSnapshot;
+import com.vaulttradebot.domain.shared.bot.MetricsSnapshot;
 import com.vaulttradebot.domain.portfolio.PortfolioSnapshot;
 import com.vaulttradebot.domain.risk.RiskContext;
 import com.vaulttradebot.domain.risk.RiskEvaluation;
@@ -265,11 +265,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     }
 
     private Market toMarket(String symbol) {
-        String[] parts = symbol.split("-");
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("market symbol must be QUOTE-BASE format, e.g. KRW-BTC");
-        }
-        return new Market(symbol, parts[1], parts[0]);
+        return new Market(symbol);
     }
 
     private BotStatusSnapshot snapshot() {

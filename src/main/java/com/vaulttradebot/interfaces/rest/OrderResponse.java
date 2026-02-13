@@ -1,6 +1,6 @@
 package com.vaulttradebot.interfaces.rest;
 
-import com.vaulttradebot.domain.shared.Order;
+import com.vaulttradebot.domain.shared.order.Order;
 import java.math.BigDecimal;
 import java.time.Instant;
 

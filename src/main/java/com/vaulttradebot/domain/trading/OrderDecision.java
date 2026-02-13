@@ -1,8 +1,8 @@
 package com.vaulttradebot.domain.trading;
 
-import com.vaulttradebot.domain.shared.Market;
-import com.vaulttradebot.domain.shared.Money;
-import com.vaulttradebot.domain.shared.Side;
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
+import com.vaulttradebot.domain.shared.order.Side;
 import java.math.BigDecimal;
 
 public record OrderDecision(

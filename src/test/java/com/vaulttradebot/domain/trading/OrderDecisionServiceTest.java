@@ -2,9 +2,9 @@ package com.vaulttradebot.domain.trading;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.vaulttradebot.domain.shared.Market;
-import com.vaulttradebot.domain.shared.Money;
-import com.vaulttradebot.domain.shared.Side;
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
+import com.vaulttradebot.domain.shared.order.Side;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Optional;
@@ -20,7 +20,7 @@ class OrderDecisionServiceTest {
 
         Optional<OrderDecision> decision = service.decide(
                 signal,
-                new Market("KRW-BTC", "BTC", "KRW"),
+                new Market("KRW-BTC"),
                 Money.of(new BigDecimal("50000000"), KRW),
                 new BigDecimal("100000")
         );
@@ -34,7 +34,7 @@ class OrderDecisionServiceTest {
 
         OrderDecision decision = service.decide(
                 signal,
-                new Market("KRW-BTC", "BTC", "KRW"),
+                new Market("KRW-BTC"),
                 Money.of(new BigDecimal("50000000"), KRW),
                 new BigDecimal("100000")
         ).orElseThrow();

@@ -1,7 +1,7 @@
 package com.vaulttradebot.infrastructure.adapter.out;
 
 import com.vaulttradebot.application.port.out.OrderRepository;
-import com.vaulttradebot.domain.shared.Order;
+import com.vaulttradebot.domain.shared.order.Order;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

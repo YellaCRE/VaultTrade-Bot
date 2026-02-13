@@ -1,22 +1,26 @@
 package com.vaulttradebot.domain.shared;
 
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
+import com.vaulttradebot.domain.shared.market.Price;
+import com.vaulttradebot.domain.shared.market.Quantity;
 import java.math.BigDecimal;
+import java.util.Currency;
 
 public class Position {
     private final Market market;
-    private BigDecimal quantity;
-    private Money averageEntryPrice;
+    private Quantity qty;
+    private Price avgPrice;
+    private Money realizedPnL;
 
     public Position(Market market, BigDecimal quantity, Money averageEntryPrice) {
         if (market == null || quantity == null || averageEntryPrice == null) {
             throw new IllegalArgumentException("position fields must not be null");
         }
-        if (quantity.signum() < 0) {
-            throw new IllegalArgumentException("quantity must not be negative");
-        }
         this.market = market;
-        this.quantity = quantity;
-        this.averageEntryPrice = averageEntryPrice;
+        this.qty = Quantity.of(quantity);
+        this.avgPrice = Price.of(averageEntryPrice.amount());
+        this.realizedPnL = Money.of(BigDecimal.ZERO, Currency.getInstance("KRW"));
     }
 
     public void increase(BigDecimal addQuantity, Money executionPrice) {
@@ -27,25 +31,32 @@ public class Position {
             throw new IllegalArgumentException("addQuantity must be positive");
         }
 
-        BigDecimal totalCost = averageEntryPrice.amount().multiply(quantity)
+        BigDecimal totalCost = avgPrice.value().multiply(qty.value())
                 .add(executionPrice.amount().multiply(addQuantity));
-        BigDecimal newQuantity = quantity.add(addQuantity);
+        BigDecimal newQuantity = qty.value().add(addQuantity);
 
-        this.quantity = newQuantity;
-        this.averageEntryPrice = Money.of(
-                totalCost.divide(newQuantity, 8, java.math.RoundingMode.HALF_UP),
-                executionPrice.currency()
-        );
+        this.qty = Quantity.of(newQuantity);
+        this.avgPrice = Price.of(totalCost.divide(newQuantity, 8, java.math.RoundingMode.HALF_UP));
     }
 
     public void decrease(BigDecimal reduceQuantity) {
         if (reduceQuantity == null || reduceQuantity.signum() <= 0) {
             throw new IllegalArgumentException("reduceQuantity must be positive");
         }
-        if (reduceQuantity.compareTo(quantity) > 0) {
+        if (reduceQuantity.compareTo(qty.value()) > 0) {
             throw new IllegalArgumentException("cannot reduce more than current quantity");
         }
-        this.quantity = quantity.subtract(reduceQuantity);
+        BigDecimal newQuantity = qty.value().subtract(reduceQuantity);
+        this.qty = Quantity.of(newQuantity);
+    }
+
+    public void recordSellFill(BigDecimal soldQuantity, Money executionPrice) {
+        if (soldQuantity == null || executionPrice == null || soldQuantity.signum() <= 0) {
+            throw new IllegalArgumentException("sell fill values must be valid");
+        }
+        BigDecimal pnl = executionPrice.amount().subtract(avgPrice.value()).multiply(soldQuantity);
+        this.realizedPnL = realizedPnL.add(Money.of(pnl, executionPrice.currency()));
+        decrease(soldQuantity);
     }
 
     public Market market() {
@@ -53,10 +64,22 @@ public class Position {
     }
 
     public BigDecimal quantity() {
-        return quantity;
+        return qty.value();
     }
 
     public Money averageEntryPrice() {
-        return averageEntryPrice;
+        return Money.of(avgPrice.value(), Currency.getInstance("KRW"));
+    }
+
+    public Price avgPrice() {
+        return avgPrice;
+    }
+
+    public Quantity qty() {
+        return qty;
+    }
+
+    public Money realizedPnL() {
+        return realizedPnL;
     }
 }

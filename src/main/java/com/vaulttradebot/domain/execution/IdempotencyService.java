@@ -1,5 +1,6 @@
 package com.vaulttradebot.domain.execution;
 
+import com.vaulttradebot.domain.shared.order.IdempotencyKey;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -17,6 +18,20 @@ public class IdempotencyService {
     ) {
         String raw = "%s|%s|%s|%s|%s".formatted(marketSymbol, side, quantity, cycleTimestamp.toString(), reason);
         return sha256(raw);
+    }
+
+    public IdempotencyKey generate(
+            String marketSymbol,
+            String side,
+            String quantity,
+            Instant cycleTimestamp,
+            String reason
+    ) {
+        return new IdempotencyKey(generateKey(marketSymbol, side, quantity, cycleTimestamp, reason));
+    }
+
+    public boolean isValid(String key) {
+        return key != null && key.matches("^[a-f0-9]{64}$");
     }
 
     private String sha256(String value) {

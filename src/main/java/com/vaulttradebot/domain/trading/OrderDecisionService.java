@@ -1,8 +1,9 @@
 package com.vaulttradebot.domain.trading;
 
-import com.vaulttradebot.domain.shared.Market;
-import com.vaulttradebot.domain.shared.Money;
-import com.vaulttradebot.domain.shared.Side;
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
+import com.vaulttradebot.domain.shared.order.Side;
+import com.vaulttradebot.domain.risk.RiskPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Optional;
@@ -34,5 +35,14 @@ public class OrderDecisionService {
 
         Side side = signal.action() == SignalAction.BUY ? Side.BUY : Side.SELL;
         return Optional.of(new OrderDecision(market, side, quantity, lastPrice, signal.reason()));
+    }
+
+    public Optional<OrderDecision> decide(
+            TradingSignal signal,
+            Market market,
+            Money lastPrice,
+            RiskPolicy riskPolicy
+    ) {
+        return decide(signal, market, lastPrice, riskPolicy.maxOrderKrw());
     }
 }

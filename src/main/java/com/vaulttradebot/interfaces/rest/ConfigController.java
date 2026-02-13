@@ -1,7 +1,7 @@
 package com.vaulttradebot.interfaces.rest;
 
 import com.vaulttradebot.application.port.in.BotConfigUseCase;
-import com.vaulttradebot.domain.ops.BotConfig;
+import com.vaulttradebot.domain.shared.bot.BotConfig;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;

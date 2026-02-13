@@ -1,7 +1,7 @@
 package com.vaulttradebot.infrastructure.adapter.out;
 
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
-import com.vaulttradebot.domain.ops.BotConfig;
+import com.vaulttradebot.domain.shared.bot.BotConfig;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Component;
 

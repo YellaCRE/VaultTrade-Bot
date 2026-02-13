@@ -1,8 +1,8 @@
 package com.vaulttradebot.infrastructure.adapter.out;
 
 import com.vaulttradebot.application.port.out.MarketDataPort;
-import com.vaulttradebot.domain.shared.Market;
-import com.vaulttradebot.domain.shared.Money;
+import com.vaulttradebot.domain.shared.market.Market;
+import com.vaulttradebot.domain.shared.market.Money;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Map;
