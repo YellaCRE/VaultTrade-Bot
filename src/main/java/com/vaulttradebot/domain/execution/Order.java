@@ -1,6 +1,6 @@
 package com.vaulttradebot.domain.execution;
 
-import com.vaulttradebot.domain.common.IdempotencyKey;
+import com.vaulttradebot.domain.common.vo.IdempotencyKey;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Price;

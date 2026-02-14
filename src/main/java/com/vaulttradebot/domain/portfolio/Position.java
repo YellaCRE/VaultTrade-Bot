@@ -9,6 +9,7 @@ import com.vaulttradebot.domain.portfolio.event.BalanceAdjusted;
 import com.vaulttradebot.domain.portfolio.event.BuyFilled;
 import com.vaulttradebot.domain.portfolio.event.FeeCharged;
 import com.vaulttradebot.domain.portfolio.event.SellFilled;
+import com.vaulttradebot.domain.portfolio.snapshot.PositionSnapshot;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

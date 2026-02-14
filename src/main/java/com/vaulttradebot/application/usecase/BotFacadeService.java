@@ -11,27 +11,35 @@ import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
-import com.vaulttradebot.domain.common.vo.Market;
-import com.vaulttradebot.domain.common.vo.Money;
-import com.vaulttradebot.domain.execution.Order;
-import com.vaulttradebot.domain.portfolio.Position;
-import com.vaulttradebot.domain.common.IdempotencyService;
-import com.vaulttradebot.domain.ops.BotConfig;
-import com.vaulttradebot.domain.ops.BotRunState;
 import com.vaulttradebot.application.query.BotStatusSnapshot;
 import com.vaulttradebot.application.query.MetricsSnapshot;
 import com.vaulttradebot.application.query.PortfolioSnapshot;
-import com.vaulttradebot.domain.risk.RiskContext;
-import com.vaulttradebot.domain.risk.RiskEvaluation;
+import com.vaulttradebot.domain.common.IdempotencyService;
+import com.vaulttradebot.domain.common.vo.Market;
+import com.vaulttradebot.domain.common.vo.Money;
+import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.domain.ops.BotConfig;
+import com.vaulttradebot.domain.ops.BotRunState;
+import com.vaulttradebot.domain.portfolio.Position;
+import com.vaulttradebot.domain.risk.snapshot.RiskAccountSnapshot;
+import com.vaulttradebot.domain.risk.vo.RiskContext;
+import com.vaulttradebot.domain.risk.vo.RiskDecision;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
+import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
+import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
+import com.vaulttradebot.domain.risk.event.RiskOrderRequest;
 import com.vaulttradebot.domain.risk.RiskPolicy;
 import com.vaulttradebot.domain.trading.OrderDecision;
 import com.vaulttradebot.domain.trading.OrderDecisionService;
 import com.vaulttradebot.domain.trading.SignalAction;
 import com.vaulttradebot.domain.trading.TradingSignal;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +50,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, RunTradingCycleUseCase, BotQueryUseCase {
     private static final int CIRCUIT_BREAKER_THRESHOLD = 3;
+    private static final String DEFAULT_ACCOUNT_ID = "default-account";
 
     private final BotSettingsRepository botSettingsRepository;
     private final MarketDataPort marketDataPort;
@@ -126,6 +135,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             return new CycleResult(false, false, "bot is not running");
         }
 
+        String reservationId = null;
         try {
             BotConfig config = botSettingsRepository.load();
             Market market = toMarket(config.marketSymbol());
@@ -142,35 +152,31 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             }
 
             OrderDecision decision = decisionOpt.get();
-            BigDecimal exposureRatio = calculateExposureRatio(config, decision);
-            RiskPolicy policy = new RiskPolicy(
-                    config.maxOrderKrw(),
-                    config.maxExposureRatio(),
-                    config.maxDailyLossRatio(),
-                    Duration.ofSeconds(config.cooldownSeconds())
-            );
-            RiskContext context = new RiskContext(
-                    decision.price().amount().multiply(decision.quantity()),
-                    exposureRatio,
-                    BigDecimal.ZERO,
-                    now,
-                    lastOrderAt.get()
-            );
-
-            RiskEvaluation riskEvaluation = riskEvaluationService.evaluate(context, policy);
-            if (!riskEvaluation.allowed()) {
+            RiskContext riskContext = buildRiskContext(config, decision, lastPrice, now);
+            RiskDecision riskDecision = riskEvaluationService.approveAndReserve(riskContext);
+            if (!riskDecision.isAllowed()) {
                 successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, riskEvaluation.reason());
+                return new CycleResult(true, false, "risk rejected: " + riskDecision.reasonCode());
+            }
+            reservationId = riskDecision.reservationId();
+
+            BigDecimal approvedQuantity = riskDecision.approvedOrderKrw()
+                    .divide(decision.price().amount(), 8, RoundingMode.DOWN);
+            if (approvedQuantity.signum() <= 0) {
+                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                successfulCycles.incrementAndGet();
+                return new CycleResult(true, false, "risk rejected: approved quantity is zero");
             }
 
             String key = idempotencyService.generateKey(
                     decision.market().value(),
                     decision.side().name(),
-                    decision.quantity().toPlainString(),
+                    approvedQuantity.toPlainString(),
                     now,
-                    decision.reason()
+                    riskDecision.reasonCode()
             );
             if (orderRepository.existsByIdempotencyKey(key)) {
+                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
                 successfulCycles.incrementAndGet();
                 return new CycleResult(true, false, "duplicate prevented by idempotency key");
             }
@@ -178,19 +184,24 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             Order order = Order.create(
                     decision.market(),
                     decision.side(),
-                    decision.quantity(),
+                    approvedQuantity,
                     decision.price(),
                     now
             );
             Order placed = exchangeTradingPort.placeOrder(order);
             orderRepository.rememberIdempotencyKey(key);
             orderRepository.save(placed);
+            riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+            reservationId = null;
             lastOrderAt.set(now);
 
             consecutiveFailures.set(0);
             successfulCycles.incrementAndGet();
-            return new CycleResult(true, true, "order placed");
+            return new CycleResult(true, true, "order placed: " + riskDecision.reasonCode());
         } catch (Exception e) {
+            if (reservationId != null) {
+                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+            }
             int failures = consecutiveFailures.incrementAndGet();
             failedCycles.incrementAndGet();
             lastError.set(e.getMessage());
@@ -254,7 +265,79 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         long fail = failedCycles.get();
         long total = success + fail;
         double rate = total == 0 ? 0.0 : (double) fail / total;
-        return new MetricsSnapshot(success, fail, rate);
+        RiskMetricsSnapshot risk = riskEvaluationService.snapshotMetrics();
+        return new MetricsSnapshot(
+                success,
+                fail,
+                rate,
+                risk.totalDecisions(),
+                risk.allowCount(),
+                risk.rejectCount(),
+                risk.allowWithLimitCount(),
+                risk.reasonCodeCounts(),
+                risk.decisionTypeCounts()
+        );
+    }
+
+    private RiskContext buildRiskContext(BotConfig config, OrderDecision decision, Money lastPrice, Instant now) {
+        Optional<Position> positionOpt = portfolioRepository.findByMarket(config.marketSymbol());
+        BigDecimal currentExposure = positionOpt
+                .map(position -> position.quantity().multiply(lastPrice.amount()))
+                .orElse(BigDecimal.ZERO);
+        BigDecimal realizedPnl = positionOpt.map(Position::realizedPnL).orElse(BigDecimal.ZERO);
+        BigDecimal unrealizedPnl = positionOpt.map(position -> position.unrealizedPnL(lastPrice)).orElse(BigDecimal.ZERO);
+        BigDecimal availableCash = config.initialCashKrw().subtract(currentExposure).max(BigDecimal.ZERO);
+
+        RiskOrderRequest orderRequest = new RiskOrderRequest(
+                DEFAULT_ACCOUNT_ID,
+                decision.market(),
+                decision.side(),
+                decision.price(),
+                decision.quantity(),
+                now
+        );
+
+        RiskAccountSnapshot accountSnapshot = new RiskAccountSnapshot(
+                DEFAULT_ACCOUNT_ID,
+                config.initialCashKrw(),
+                availableCash,
+                BigDecimal.ZERO,
+                currentExposure,
+                realizedPnl,
+                unrealizedPnl,
+                BigDecimal.ZERO,
+                lastOrderAt.get()
+        );
+
+        RiskMarketSnapshot marketSnapshot = new RiskMarketSnapshot(
+                config.marketSymbol(),
+                lastPrice.amount(),
+                lastPrice.amount(),
+                lastPrice.amount(),
+                BigDecimal.ZERO,
+                now,
+                Duration.ofSeconds(5)
+        );
+
+        RiskPolicy policy = new RiskPolicy(
+                new BigDecimal("5000"),
+                config.maxOrderKrw(),
+                config.maxExposureRatio(),
+                config.maxDailyLossRatio(),
+                Duration.ofSeconds(config.cooldownSeconds()),
+                Duration.ofSeconds(5),
+                ZoneId.of("Asia/Seoul"),
+                new BigDecimal("0.0005"),
+                new BigDecimal("0.0020")
+        );
+
+        return new RiskContext(
+                orderRequest,
+                accountSnapshot,
+                marketSnapshot,
+                policy,
+                Clock.fixed(now, ZoneOffset.UTC)
+        );
     }
 
     private TradingSignal determineSignal(BotConfig config, Money lastPrice) {
@@ -262,16 +345,6 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             return new TradingSignal(SignalAction.BUY, "price under threshold");
         }
         return new TradingSignal(SignalAction.HOLD, "no signal");
-    }
-
-    private BigDecimal calculateExposureRatio(BotConfig config, OrderDecision decision) {
-        Optional<Position> position = portfolioRepository.findByMarket(config.marketSymbol());
-        BigDecimal currentExposure = position
-                .map(value -> value.quantity().multiply(decision.price().amount()))
-                .orElse(BigDecimal.ZERO);
-        BigDecimal requested = decision.price().amount().multiply(decision.quantity());
-        BigDecimal totalExposure = currentExposure.add(requested);
-        return totalExposure.divide(config.initialCashKrw(), 8, java.math.RoundingMode.HALF_UP);
     }
 
     private Market toMarket(String symbol) {

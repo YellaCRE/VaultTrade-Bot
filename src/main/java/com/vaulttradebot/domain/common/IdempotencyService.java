@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+
+import com.vaulttradebot.domain.common.vo.IdempotencyKey;
 import org.springframework.stereotype.Component;
 
 @Component
