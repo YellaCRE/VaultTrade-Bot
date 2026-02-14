@@ -10,7 +10,9 @@ public record OrderResponse(
         String side,
         BigDecimal quantity,
         BigDecimal priceKrw,
-        String state,
+        String status,
+        BigDecimal executedQuantity,
+        BigDecimal executedAmountKrw,
         Instant createdAt
 ) {
     public static OrderResponse from(Order order) {
@@ -20,7 +22,9 @@ public record OrderResponse(
                 order.side().name(),
                 order.quantity(),
                 order.price().amount(),
-                order.state().name(),
+                order.status().name(),
+                order.executedQuantity().value(),
+                order.executedAmount().amount(),
                 order.createdAt()
         );
     }

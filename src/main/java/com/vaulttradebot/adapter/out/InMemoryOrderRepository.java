@@ -15,7 +15,20 @@ public class InMemoryOrderRepository implements OrderRepository {
 
     @Override
     public Order save(Order order) {
-        orders.add(order);
+        synchronized (orders) {
+            int index = -1;
+            for (int i = 0; i < orders.size(); i++) {
+                if (orders.get(i).id().equals(order.id())) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index >= 0) {
+                orders.set(index, order);
+            } else {
+                orders.add(order);
+            }
+        }
         return order;
     }
 

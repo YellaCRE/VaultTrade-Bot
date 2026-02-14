@@ -182,7 +182,6 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                     decision.price(),
                     now
             );
-            order.submit();
             Order placed = exchangeTradingPort.placeOrder(order);
             orderRepository.rememberIdempotencyKey(key);
             orderRepository.save(placed);
