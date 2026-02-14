@@ -2,9 +2,9 @@ package com.vaulttradebot.domain.trading;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.vaulttradebot.domain.shared.market.Market;
-import com.vaulttradebot.domain.shared.market.Money;
-import com.vaulttradebot.domain.shared.order.Side;
+import com.vaulttradebot.domain.common.vo.Market;
+import com.vaulttradebot.domain.common.vo.Money;
+import com.vaulttradebot.domain.common.vo.Side;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Optional;

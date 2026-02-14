@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.vaulttradebot.application.port.out.LoadMarketSnapshotPort;
-import com.vaulttradebot.domain.shared.market.MarketSnapshot;
+import com.vaulttradebot.domain.common.MarketSnapshot;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

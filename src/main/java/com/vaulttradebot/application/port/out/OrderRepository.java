@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.port.out;
 
-import com.vaulttradebot.domain.shared.order.Order;
+import com.vaulttradebot.domain.common.Order;
 import java.util.List;
 
 public interface OrderRepository {

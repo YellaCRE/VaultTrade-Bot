@@ -2,7 +2,7 @@ package com.vaulttradebot.application.service;
 
 import com.vaulttradebot.application.port.in.AnalyzeMarketUseCase;
 import com.vaulttradebot.application.port.out.LoadMarketSnapshotPort;
-import com.vaulttradebot.domain.shared.market.MarketSnapshot;
+import com.vaulttradebot.domain.common.MarketSnapshot;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -1,6 +1,5 @@
 package com.vaulttradebot.domain.execution;
 
-import com.vaulttradebot.domain.shared.order.IdempotencyKey;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

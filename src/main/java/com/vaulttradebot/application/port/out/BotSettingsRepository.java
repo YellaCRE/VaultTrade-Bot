@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.port.out;
 
-import com.vaulttradebot.domain.shared.bot.BotConfig;
+import com.vaulttradebot.domain.ops.BotConfig;
 
 public interface BotSettingsRepository {
     BotConfig load();
