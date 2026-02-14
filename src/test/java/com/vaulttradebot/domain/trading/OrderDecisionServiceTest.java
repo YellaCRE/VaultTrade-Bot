@@ -14,6 +14,7 @@ class OrderDecisionServiceTest {
 
     @Test
     void returnsEmptyForHoldSignal() {
+        // Verifies HOLD signals do not produce executable order decisions.
         TradingSignal signal = new TradingSignal(SignalAction.HOLD, "no signal");
 
         Optional<OrderDecision> decision = service.decide(
@@ -28,6 +29,7 @@ class OrderDecisionServiceTest {
 
     @Test
     void calculatesQuantityFromMaxOrderAmount() {
+        // Verifies quantity is derived from max KRW order amount and market price.
         TradingSignal signal = new TradingSignal(SignalAction.BUY, "entry");
 
         OrderDecision decision = service.decide(

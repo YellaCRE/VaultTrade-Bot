@@ -12,6 +12,7 @@ class IdempotencyServiceTest {
 
     @Test
     void returnsSameKeyForSameInput() {
+        // Verifies deterministic key generation for identical input payloads.
         Instant cycleTime = Instant.parse("2026-02-13T10:00:00Z");
 
         String key1 = service.generateKey("KRW-BTC", "BUY", "0.01", cycleTime, "reason");
@@ -23,6 +24,7 @@ class IdempotencyServiceTest {
 
     @Test
     void returnsDifferentKeyWhenInputChanges() {
+        // Verifies key changes when any idempotency input field changes.
         Instant cycleTime = Instant.parse("2026-02-13T10:00:00Z");
 
         String key1 = service.generateKey("KRW-BTC", "BUY", "0.01", cycleTime, "reason1");

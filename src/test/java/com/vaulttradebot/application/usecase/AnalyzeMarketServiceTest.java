@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 class AnalyzeMarketServiceTest {
     @Test
     void analyzeReturnsSnapshotFromPort() {
+        // Verifies use case delegates to port and returns the same snapshot.
         LoadMarketSnapshotPort port = Mockito.mock(LoadMarketSnapshotPort.class);
         AnalyzeMarketService service = new AnalyzeMarketService(port);
         MarketSnapshot snapshot = new MarketSnapshot("BTC", new BigDecimal("123.45"));
