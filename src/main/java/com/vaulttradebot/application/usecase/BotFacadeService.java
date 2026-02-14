@@ -219,20 +219,33 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                     config.marketSymbol(),
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    config.initialCashKrw(),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
                     BigDecimal.ZERO
             );
         }
 
         Position position = positionOpt.get();
         BigDecimal quantity = position.quantity();
-        BigDecimal avg = position.averageEntryPrice().amount();
-        BigDecimal invested = avg.multiply(quantity);
-        BigDecimal currentValue = lastPrice.amount().multiply(quantity);
-        BigDecimal unrealized = currentValue.subtract(invested);
-        BigDecimal cash = config.initialCashKrw().subtract(invested).max(BigDecimal.ZERO);
+        BigDecimal avg = position.avgPrice().value();
+        BigDecimal invested = position.totalInvestment();
+        BigDecimal marketValue = position.marketValue(lastPrice);
+        BigDecimal realized = position.realizedPnL();
+        BigDecimal unrealized = position.unrealizedPnL(lastPrice);
+        BigDecimal totalPnl = realized.add(unrealized);
 
-        return new PortfolioSnapshot(config.marketSymbol(), quantity, avg, cash, unrealized);
+        return new PortfolioSnapshot(
+                config.marketSymbol(),
+                quantity,
+                avg,
+                invested,
+                marketValue,
+                realized,
+                unrealized,
+                totalPnl
+        );
     }
 
     @Override

@@ -9,5 +9,5 @@ public interface PortfolioRepository {
 
     Optional<Position> findByMarket(String marketSymbol);
 
-    Position save(Position position);
+    Position save(Position position, long expectedVersion);
 }

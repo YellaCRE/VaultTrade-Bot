@@ -6,7 +6,10 @@ public record PortfolioSnapshot(
         String marketSymbol,
         BigDecimal quantity,
         BigDecimal averagePriceKrw,
-        BigDecimal cashKrw,
-        BigDecimal unrealizedPnlKrw
+        BigDecimal totalInvestmentKrw,
+        BigDecimal marketValueKrw,
+        BigDecimal realizedPnlKrw,
+        BigDecimal unrealizedPnlKrw,
+        BigDecimal totalPnlKrw
 ) {
 }
