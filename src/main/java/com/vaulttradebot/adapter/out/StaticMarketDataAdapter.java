@@ -1,17 +1,17 @@
 package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.MarketDataPort;
-import com.vaulttradebot.domain.common.vo.AssetSymbol;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import java.math.BigDecimal;
+import java.util.Currency;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 @Component
 public class StaticMarketDataAdapter implements MarketDataPort {
-    private static final AssetSymbol KRW = AssetSymbol.of("KRW");
+    private static final Currency KRW = Currency.getInstance("KRW");
 
     private final Map<String, BigDecimal> prices = new ConcurrentHashMap<>();
 
