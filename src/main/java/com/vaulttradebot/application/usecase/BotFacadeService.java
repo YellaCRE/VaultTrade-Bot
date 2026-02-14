@@ -32,7 +32,6 @@ import com.vaulttradebot.domain.trading.TradingSignal;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +41,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, RunTradingCycleUseCase, BotQueryUseCase {
-    private static final Currency KRW = Currency.getInstance("KRW");
     private static final int CIRCUIT_BREAKER_THRESHOLD = 3;
 
     private final BotSettingsRepository botSettingsRepository;
@@ -166,7 +164,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             }
 
             String key = idempotencyService.generateKey(
-                    decision.market().symbol(),
+                    decision.market().value(),
                     decision.side().name(),
                     decision.quantity().toPlainString(),
                     now,
@@ -265,7 +263,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     }
 
     private Market toMarket(String symbol) {
-        return new Market(symbol);
+        return Market.of(symbol);
     }
 
     private BotStatusSnapshot snapshot() {

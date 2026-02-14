@@ -6,13 +6,11 @@ import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import java.math.BigDecimal;
-import java.util.Currency;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class OrderDecisionServiceTest {
     private final OrderDecisionService service = new OrderDecisionService();
-    private static final Currency KRW = Currency.getInstance("KRW");
 
     @Test
     void returnsEmptyForHoldSignal() {
@@ -20,8 +18,8 @@ class OrderDecisionServiceTest {
 
         Optional<OrderDecision> decision = service.decide(
                 signal,
-                new Market("KRW-BTC"),
-                Money.of(new BigDecimal("50000000"), KRW),
+                Market.of("KRW-BTC"),
+                Money.krw(new BigDecimal("50000000")),
                 new BigDecimal("100000")
         );
 
@@ -34,8 +32,8 @@ class OrderDecisionServiceTest {
 
         OrderDecision decision = service.decide(
                 signal,
-                new Market("KRW-BTC"),
-                Money.of(new BigDecimal("50000000"), KRW),
+                Market.of("KRW-BTC"),
+                Money.krw(new BigDecimal("50000000")),
                 new BigDecimal("100000")
         ).orElseThrow();
 

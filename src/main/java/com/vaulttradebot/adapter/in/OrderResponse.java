@@ -16,7 +16,7 @@ public record OrderResponse(
     public static OrderResponse from(Order order) {
         return new OrderResponse(
                 order.id(),
-                order.market().symbol(),
+                order.market().value(),
                 order.side().name(),
                 order.quantity(),
                 order.price().amount(),

@@ -24,7 +24,7 @@ public class InMemoryPortfolioRepository implements PortfolioRepository {
 
     @Override
     public Position save(Position position) {
-        positions.put(position.market().symbol(), position);
+        positions.put(position.market().value(), position);
         return position;
     }
 }

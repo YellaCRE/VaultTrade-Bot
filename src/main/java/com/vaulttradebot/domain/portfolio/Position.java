@@ -6,7 +6,6 @@ import com.vaulttradebot.domain.common.vo.Price;
 import com.vaulttradebot.domain.common.vo.Quantity;
 
 import java.math.BigDecimal;
-import java.util.Currency;
 
 public class Position {
     private final Market market;
@@ -20,8 +19,8 @@ public class Position {
         }
         this.market = market;
         this.qty = Quantity.of(quantity);
-        this.avgPrice = Price.of(averageEntryPrice.amount());
-        this.realizedPnL = Money.of(BigDecimal.ZERO, Currency.getInstance("KRW"));
+        this.avgPrice = Price.of(averageEntryPrice.amount(), averageEntryPrice.currency());
+        this.realizedPnL = Money.krw(BigDecimal.ZERO);
     }
 
     public void increase(BigDecimal addQuantity, Money executionPrice) {
@@ -37,7 +36,10 @@ public class Position {
         BigDecimal newQuantity = qty.value().add(addQuantity);
 
         this.qty = Quantity.of(newQuantity);
-        this.avgPrice = Price.of(totalCost.divide(newQuantity, 8, java.math.RoundingMode.HALF_UP));
+        this.avgPrice = Price.of(
+                totalCost.divide(newQuantity, 8, java.math.RoundingMode.HALF_UP),
+                executionPrice.currency()
+        );
     }
 
     public void decrease(BigDecimal reduceQuantity) {
@@ -56,7 +58,10 @@ public class Position {
             throw new IllegalArgumentException("sell fill values must be valid");
         }
         BigDecimal pnl = executionPrice.amount().subtract(avgPrice.value()).multiply(soldQuantity);
-        this.realizedPnL = realizedPnL.add(Money.of(pnl, executionPrice.currency()));
+        if (pnl.signum() < 0) {
+            throw new IllegalArgumentException("realized pnl cannot be negative with Money invariant");
+        }
+        this.realizedPnL = realizedPnL.add(Money.krw(pnl));
         decrease(soldQuantity);
     }
 
@@ -69,7 +74,7 @@ public class Position {
     }
 
     public Money averageEntryPrice() {
-        return Money.of(avgPrice.value(), Currency.getInstance("KRW"));
+        return Money.of(avgPrice.value(), avgPrice.unitCurrency());
     }
 
     public Price avgPrice() {

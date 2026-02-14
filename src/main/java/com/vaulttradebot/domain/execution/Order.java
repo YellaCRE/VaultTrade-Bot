@@ -55,7 +55,7 @@ public class Order {
                 OrderType.LIMIT,
                 side,
                 Quantity.of(quantity),
-                Price.of(price.amount()),
+                Price.of(price.amount(), price.currency()),
                 IdempotencyKey.random(),
                 createdAt,
                 OrderState.NEW
@@ -95,7 +95,7 @@ public class Order {
     }
 
     public Money price() {
-        return Money.of(price.value(), java.util.Currency.getInstance("KRW"));
+        return Money.of(price.value(), price.unitCurrency());
     }
 
     public IdempotencyKey idempotencyKey() {
