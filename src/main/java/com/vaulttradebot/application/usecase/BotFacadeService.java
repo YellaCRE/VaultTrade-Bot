@@ -1,4 +1,4 @@
-package com.vaulttradebot.application.service;
+package com.vaulttradebot.application.usecase;
 
 import com.vaulttradebot.application.port.in.BotConfigUseCase;
 import com.vaulttradebot.application.port.in.BotControlUseCase;
@@ -13,14 +13,14 @@ import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
-import com.vaulttradebot.domain.common.Order;
-import com.vaulttradebot.domain.common.Position;
-import com.vaulttradebot.domain.execution.IdempotencyService;
+import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.domain.portfolio.Position;
+import com.vaulttradebot.domain.common.IdempotencyService;
 import com.vaulttradebot.domain.ops.BotConfig;
 import com.vaulttradebot.domain.ops.BotRunState;
-import com.vaulttradebot.domain.ops.BotStatusSnapshot;
-import com.vaulttradebot.domain.ops.MetricsSnapshot;
-import com.vaulttradebot.domain.portfolio.PortfolioSnapshot;
+import com.vaulttradebot.application.query.BotStatusSnapshot;
+import com.vaulttradebot.application.query.MetricsSnapshot;
+import com.vaulttradebot.application.query.PortfolioSnapshot;
 import com.vaulttradebot.domain.risk.RiskContext;
 import com.vaulttradebot.domain.risk.RiskEvaluation;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;

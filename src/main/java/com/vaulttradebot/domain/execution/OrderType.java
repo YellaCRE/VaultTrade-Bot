@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.common;
+package com.vaulttradebot.domain.execution;
 
 public enum OrderType {
     MARKET,

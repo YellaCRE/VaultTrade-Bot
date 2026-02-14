@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.common;
+package com.vaulttradebot.application.query;
 
 import java.math.BigDecimal;
 

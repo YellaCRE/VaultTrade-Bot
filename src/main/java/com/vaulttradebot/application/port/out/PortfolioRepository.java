@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.port.out;
 
-import com.vaulttradebot.domain.common.Position;
+import com.vaulttradebot.domain.portfolio.Position;
 import java.util.List;
 import java.util.Optional;
 

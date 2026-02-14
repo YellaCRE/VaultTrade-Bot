@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.port.out;
 
-import com.vaulttradebot.domain.common.Order;
+import com.vaulttradebot.domain.execution.Order;
 
 public interface ExchangeTradingPort {
     Order placeOrder(Order order);

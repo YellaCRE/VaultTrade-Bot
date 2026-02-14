@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.execution;
+package com.vaulttradebot.domain.common;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

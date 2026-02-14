@@ -1,7 +1,7 @@
 package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
-import com.vaulttradebot.domain.common.Order;
+import com.vaulttradebot.domain.execution.Order;
 import org.springframework.stereotype.Component;
 
 @Component

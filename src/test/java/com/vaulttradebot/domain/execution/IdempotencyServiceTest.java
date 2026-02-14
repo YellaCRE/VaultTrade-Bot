@@ -3,6 +3,8 @@ package com.vaulttradebot.domain.execution;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+
+import com.vaulttradebot.domain.common.IdempotencyService;
 import org.junit.jupiter.api.Test;
 
 class IdempotencyServiceTest {

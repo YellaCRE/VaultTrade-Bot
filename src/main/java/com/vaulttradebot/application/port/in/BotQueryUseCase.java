@@ -1,8 +1,8 @@
 package com.vaulttradebot.application.port.in;
 
-import com.vaulttradebot.domain.common.Order;
-import com.vaulttradebot.domain.ops.MetricsSnapshot;
-import com.vaulttradebot.domain.portfolio.PortfolioSnapshot;
+import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.application.query.MetricsSnapshot;
+import com.vaulttradebot.application.query.PortfolioSnapshot;
 import java.util.List;
 
 public interface BotQueryUseCase {

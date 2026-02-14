@@ -1,8 +1,8 @@
-package com.vaulttradebot.application.service;
+package com.vaulttradebot.application.usecase;
 
 import com.vaulttradebot.application.port.in.AnalyzeMarketUseCase;
 import com.vaulttradebot.application.port.out.LoadMarketSnapshotPort;
-import com.vaulttradebot.domain.common.MarketSnapshot;
+import com.vaulttradebot.application.query.MarketSnapshot;
 import org.springframework.stereotype.Service;
 
 @Service

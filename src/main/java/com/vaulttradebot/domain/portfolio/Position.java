@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.common;
+package com.vaulttradebot.domain.portfolio;
 
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;

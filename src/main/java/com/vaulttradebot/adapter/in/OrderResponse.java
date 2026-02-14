@@ -1,6 +1,6 @@
 package com.vaulttradebot.adapter.in;
 
-import com.vaulttradebot.domain.common.Order;
+import com.vaulttradebot.domain.execution.Order;
 import java.math.BigDecimal;
 import java.time.Instant;
 

@@ -1,7 +1,7 @@
 package com.vaulttradebot.adapter.in;
 
 import com.vaulttradebot.application.port.in.BotQueryUseCase;
-import com.vaulttradebot.domain.ops.MetricsSnapshot;
+import com.vaulttradebot.application.query.MetricsSnapshot;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

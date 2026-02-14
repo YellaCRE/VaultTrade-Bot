@@ -1,4 +1,6 @@
-package com.vaulttradebot.domain.ops;
+package com.vaulttradebot.application.query;
+
+import com.vaulttradebot.domain.ops.BotRunState;
 
 import java.time.Instant;
 

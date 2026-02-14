@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.port.in;
 
-import com.vaulttradebot.domain.ops.BotStatusSnapshot;
+import com.vaulttradebot.application.query.BotStatusSnapshot;
 
 public interface BotControlUseCase {
     BotStatusSnapshot status();

@@ -1,7 +1,7 @@
 package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.LoadMarketSnapshotPort;
-import com.vaulttradebot.domain.common.MarketSnapshot;
+import com.vaulttradebot.application.query.MarketSnapshot;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 

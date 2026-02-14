@@ -2,8 +2,8 @@ package com.vaulttradebot.adapter.in;
 
 import com.vaulttradebot.application.port.in.BotControlUseCase;
 import com.vaulttradebot.application.port.in.RunTradingCycleUseCase;
-import com.vaulttradebot.application.service.CycleResult;
-import com.vaulttradebot.domain.ops.BotStatusSnapshot;
+import com.vaulttradebot.application.usecase.CycleResult;
+import com.vaulttradebot.application.query.BotStatusSnapshot;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

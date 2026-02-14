@@ -1,7 +1,7 @@
-package com.vaulttradebot.domain.common;
+package com.vaulttradebot.domain.execution;
 
+import com.vaulttradebot.domain.common.IdempotencyKey;
 import com.vaulttradebot.domain.common.vo.*;
-import com.vaulttradebot.domain.execution.IdempotencyKey;
 
 import java.math.BigDecimal;
 import java.time.Instant;
