@@ -3,19 +3,123 @@ package com.vaulttradebot.domain.trading;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
+import com.vaulttradebot.domain.execution.vo.OrderType;
 import com.vaulttradebot.domain.risk.RiskPolicy;
+import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
 import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.vo.*;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.Optional;
-
-import com.vaulttradebot.domain.trading.vo.SignalAction;
-import com.vaulttradebot.domain.trading.vo.TradingSignal;
 import org.springframework.stereotype.Component;
 
 /** Converts validated signals into executable order intents. */
 @Component
 public class OrderDecisionService {
+    /** Returns place/modify/cancel/hold decision from current state snapshot. */
+    public OrderActionDecision decide(OrderDecisionContext context) {
+        if (context.signal().action() == SignalAction.HOLD) {
+            return OrderActionDecision.hold("signal is HOLD");
+        }
+        if (!context.riskAllowed()) {
+            return context.openOrder()
+                    .map(open -> OrderActionDecision.cancel(
+                            OrderCommand.cancel(open.orderId(), "risk rejected: " + context.riskReason()),
+                            "risk rejected with open order"
+                    ))
+                    .orElseGet(() -> OrderActionDecision.hold("risk rejected: " + context.riskReason()));
+        }
+        if (isStale(context.marketDataAsOf(), context.now(), context.marketPolicy().staleAfter())) {
+            return context.openOrder()
+                    .map(open -> OrderActionDecision.cancel(
+                            OrderCommand.cancel(open.orderId(), "market data is stale"),
+                            "market data stale with open order"
+                    ))
+                    .orElseGet(() -> OrderActionDecision.hold("market data is stale"));
+        }
+        if (isSpreadTooWide(context)) {
+            return context.openOrder()
+                    .map(open -> OrderActionDecision.cancel(
+                            OrderCommand.cancel(open.orderId(), "spread is too wide"),
+                            "spread too wide with open order"
+                    ))
+                    .orElseGet(() -> OrderActionDecision.hold("spread is too wide"));
+        }
+        if (isCooldownActive(context.lastOrderAt(), context.now(), context.marketPolicy().cooldown())) {
+            return OrderActionDecision.hold("cooldown is active");
+        }
+
+        Side side = context.signal().action() == SignalAction.BUY ? Side.BUY : Side.SELL;
+        Money roundedPrice = roundPrice(context.lastPrice(), context.marketPolicy().priceTick());
+        BigDecimal roundedQty = roundQuantity(
+                context.maxOrderKrw().divide(roundedPrice.amount(), 8, RoundingMode.DOWN),
+                context.marketPolicy().quantityStep()
+        );
+        BigDecimal notional = roundedPrice.amount().multiply(roundedQty);
+        if (roundedQty.signum() <= 0 || notional.compareTo(context.marketPolicy().minNotionalKrw()) < 0) {
+            return OrderActionDecision.hold("below exchange minimum order");
+        }
+
+        String clientOrderId = generateClientOrderId(
+                context.marketEventId(),
+                context.market(),
+                side,
+                roundedPrice,
+                roundedQty,
+                context.signal().signalAt()
+        );
+
+        if (context.openOrder().isEmpty()) {
+            return OrderActionDecision.place(
+                    new OrderCommand(
+                            OrderCommandType.CREATE,
+                            null,
+                            context.market(),
+                            side,
+                            OrderType.LIMIT,
+                            roundedPrice,
+                            roundedQty,
+                            clientOrderId,
+                            "new signal"
+                    ),
+                    "place new order"
+            );
+        }
+
+        OpenOrderSnapshot openOrder = context.openOrder().get();
+        if (openOrder.clientOrderId() != null && openOrder.clientOrderId().equals(clientOrderId)) {
+            return OrderActionDecision.hold("duplicate market event");
+        }
+        if (openOrder.side() != side) {
+            return OrderActionDecision.cancel(
+                    OrderCommand.cancel(openOrder.orderId(), "signal side changed"),
+                    "cancel opposite-side order"
+            );
+        }
+        if (shouldReplace(openOrder, roundedPrice, roundedQty, context.marketPolicy())) {
+            return OrderActionDecision.modify(
+                    OrderCommand.replace(
+                            openOrder.orderId(),
+                            context.market(),
+                            side,
+                            roundedPrice,
+                            roundedQty,
+                            clientOrderId,
+                            "price or quantity changed"
+                    ),
+                    "replace open order"
+            );
+        }
+        return OrderActionDecision.hold("open order is within replace tolerance");
+    }
+
     /** Builds an order candidate from a legacy trading signal and order budget. */
     public Optional<OrderDecision> decide(
             TradingSignal signal,
@@ -65,5 +169,84 @@ public class OrderDecisionService {
             RiskPolicy riskPolicy
     ) {
         return decide(signal, market, lastPrice, riskPolicy.maxOrderKrw());
+    }
+
+    private boolean isStale(Instant marketDataAsOf, Instant now, Duration staleAfter) {
+        // Reject stale data before placing or replacing orders.
+        return marketDataAsOf.plus(staleAfter).isBefore(now);
+    }
+
+    private boolean isCooldownActive(Instant lastOrderAt, Instant now, Duration cooldown) {
+        if (lastOrderAt == null || cooldown.isZero()) {
+            return false;
+        }
+        return Duration.between(lastOrderAt, now).compareTo(cooldown) < 0;
+    }
+
+    private boolean isSpreadTooWide(OrderDecisionContext context) {
+        if (context.bestBidPrice() == null || context.bestAskPrice() == null) {
+            return false;
+        }
+        BigDecimal bid = context.bestBidPrice().amount();
+        BigDecimal ask = context.bestAskPrice().amount();
+        if (bid.signum() <= 0 || ask.signum() <= 0 || ask.compareTo(bid) < 0) {
+            return true;
+        }
+        BigDecimal spreadRatio = ask.subtract(bid).divide(ask, 8, RoundingMode.HALF_UP);
+        return spreadRatio.compareTo(context.marketPolicy().maxSpreadRatio()) > 0;
+    }
+
+    private Money roundPrice(Money rawPrice, BigDecimal priceTick) {
+        BigDecimal ticks = rawPrice.amount().divide(priceTick, 0, RoundingMode.DOWN);
+        return Money.krw(ticks.multiply(priceTick));
+    }
+
+    private BigDecimal roundQuantity(BigDecimal rawQty, BigDecimal quantityStep) {
+        BigDecimal steps = rawQty.divide(quantityStep, 0, RoundingMode.DOWN);
+        return steps.multiply(quantityStep).setScale(8, RoundingMode.DOWN);
+    }
+
+    private boolean shouldReplace(
+            OpenOrderSnapshot openOrder,
+            Money targetPrice,
+            BigDecimal targetQty,
+            OrderMarketPolicy policy
+    ) {
+        BigDecimal priceTicks = openOrder.price().amount()
+                .subtract(targetPrice.amount())
+                .abs()
+                .divide(policy.priceTick(), 8, RoundingMode.HALF_UP);
+        BigDecimal qtySteps = openOrder.quantity()
+                .subtract(targetQty)
+                .abs()
+                .divide(policy.quantityStep(), 8, RoundingMode.HALF_UP);
+        return priceTicks.compareTo(policy.replacePriceThresholdTicks()) > 0
+                || qtySteps.compareTo(policy.replaceQuantityThresholdSteps()) > 0;
+    }
+
+    private String generateClientOrderId(
+            String marketEventId,
+            Market market,
+            Side side,
+            Money price,
+            BigDecimal quantity,
+            Instant signalAt
+    ) {
+        String seed = (marketEventId == null ? "-" : marketEventId)
+                + "|" + market.value()
+                + "|" + side.name()
+                + "|" + price.amount().toPlainString()
+                + "|" + quantity.toPlainString()
+                + "|" + signalAt;
+        return "vtb-" + sha256(seed).substring(0, 24);
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 }

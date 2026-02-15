@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.execution.vo;
+package com.vaulttradebot.domain.execution;
 
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Quantity;

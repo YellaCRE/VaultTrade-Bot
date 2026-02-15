@@ -1,4 +1,6 @@
-package com.vaulttradebot.domain.risk.vo;
+package com.vaulttradebot.domain.risk;
+
+import com.vaulttradebot.domain.risk.vo.RiskDecisionType;
 
 import java.math.BigDecimal;
 import java.util.Map;

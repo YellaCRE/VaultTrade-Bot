@@ -6,7 +6,7 @@ import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Quantity;
 import com.vaulttradebot.domain.common.vo.Side;
-import com.vaulttradebot.domain.execution.vo.ExecutionTrade;
+import com.vaulttradebot.domain.execution.ExecutionTrade;
 import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import java.math.BigDecimal;

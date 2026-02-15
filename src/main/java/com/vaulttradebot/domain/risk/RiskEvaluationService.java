@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
 import com.vaulttradebot.domain.risk.vo.RiskContext;
-import com.vaulttradebot.domain.risk.vo.RiskDecision;
 import com.vaulttradebot.domain.risk.vo.RiskDecisionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -2,7 +2,7 @@ package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.domain.common.vo.Quantity;
-import com.vaulttradebot.domain.execution.vo.ExecutionTrade;
+import com.vaulttradebot.domain.execution.ExecutionTrade;
 import com.vaulttradebot.domain.execution.Order;
 import java.time.Instant;
 import java.util.UUID;

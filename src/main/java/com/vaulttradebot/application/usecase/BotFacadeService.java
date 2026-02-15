@@ -19,18 +19,25 @@ import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import com.vaulttradebot.domain.ops.BotConfig;
 import com.vaulttradebot.domain.ops.BotRunState;
 import com.vaulttradebot.domain.portfolio.Position;
 import com.vaulttradebot.domain.risk.snapshot.RiskAccountSnapshot;
 import com.vaulttradebot.domain.risk.vo.RiskContext;
-import com.vaulttradebot.domain.risk.vo.RiskDecision;
+import com.vaulttradebot.domain.risk.RiskDecision;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
 import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
 import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
 import com.vaulttradebot.domain.risk.RiskOrderRequest;
 import com.vaulttradebot.domain.risk.RiskPolicy;
-import com.vaulttradebot.domain.trading.OrderDecision;
+import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
+import com.vaulttradebot.domain.trading.OrderActionDecision;
+import com.vaulttradebot.domain.trading.OrderCommand;
+import com.vaulttradebot.domain.trading.vo.OrderDecisionContext;
+import com.vaulttradebot.domain.trading.vo.OrderDecisionType;
+import com.vaulttradebot.domain.trading.OrderMarketPolicy;
+import com.vaulttradebot.domain.trading.vo.OrderDecision;
 import com.vaulttradebot.domain.trading.OrderDecisionService;
 import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
 import com.vaulttradebot.domain.trading.strategy.Strategy;
@@ -38,7 +45,6 @@ import com.vaulttradebot.domain.trading.strategy.vo.StrategyContext;
 import com.vaulttradebot.domain.trading.strategy.snapshot.StrategyPositionSnapshot;
 import com.vaulttradebot.domain.common.vo.Timeframe;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -46,6 +52,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +62,12 @@ import org.springframework.stereotype.Service;
 public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, RunTradingCycleUseCase, BotQueryUseCase {
     private static final int CIRCUIT_BREAKER_THRESHOLD = 3;
     private static final String DEFAULT_ACCOUNT_ID = "default-account";
+    private static final Set<OrderStatus> ACTIVE_ORDER_STATUSES = Set.of(
+            OrderStatus.NEW,
+            OrderStatus.OPEN,
+            OrderStatus.PARTIAL_FILLED,
+            OrderStatus.CANCEL_REQUESTED
+    );
 
     private final BotSettingsRepository botSettingsRepository;
     private final MarketDataPort marketDataPort;
@@ -147,64 +160,104 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             BotConfig config = botSettingsRepository.load();
             Market market = toMarket(config.marketSymbol());
             Money lastPrice = marketDataPort.getLastPrice(market);
+            Optional<OpenOrderSnapshot> openOrder = findLatestOpenOrder(market);
 
             SignalDecision signal = determineSignal(config, market, now);
-            Optional<OrderDecision> decisionOpt = orderDecisionService.decide(
-                    signal, market, lastPrice, config.maxOrderKrw()
+            boolean riskAllowed = true;
+            String riskReason = "RISK_SKIPPED";
+            BigDecimal approvedOrderKrw = config.maxOrderKrw();
+
+            Optional<OrderDecision> riskCandidate = orderDecisionService.decide(
+                    signal,
+                    market,
+                    lastPrice,
+                    config.maxOrderKrw()
             );
-            if (decisionOpt.isEmpty()) {
+            if (riskCandidate.isPresent()) {
+                RiskContext riskContext = buildRiskContext(config, riskCandidate.get(), lastPrice, now);
+                RiskDecision riskDecision = riskEvaluationService.approveAndReserve(riskContext);
+                riskAllowed = riskDecision.isAllowed();
+                riskReason = riskDecision.reasonCode();
+                if (riskAllowed) {
+                    reservationId = riskDecision.reservationId();
+                    approvedOrderKrw = riskDecision.approvedOrderKrw();
+                }
+            }
+
+            OrderActionDecision actionDecision = orderDecisionService.decide(
+                    new OrderDecisionContext(
+                            signal,
+                            market,
+                            lastPrice,
+                            null,
+                            null,
+                            now,
+                            now,
+                            approvedOrderKrw,
+                            riskAllowed,
+                            riskReason,
+                            openOrder,
+                            market.value() + ":" + signal.signalAt(),
+                            buildOrderPolicy(config),
+                            lastOrderAt.get()
+                    )
+            );
+
+            if (actionDecision.type() == OrderDecisionType.HOLD) {
+                if (reservationId != null) {
+                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                    reservationId = null;
+                }
+                successfulCycles.incrementAndGet();
                 consecutiveFailures.set(0);
-                successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, "no trade signal: " + signal.reason());
+                return new CycleResult(true, false, actionDecision.reason());
             }
 
-            OrderDecision decision = decisionOpt.get();
-            RiskContext riskContext = buildRiskContext(config, decision, lastPrice, now);
-            RiskDecision riskDecision = riskEvaluationService.approveAndReserve(riskContext);
-            if (!riskDecision.isAllowed()) {
+            OrderCommand command = actionDecision.command().orElseThrow();
+            if (actionDecision.type() == OrderDecisionType.CANCEL) {
+                cancelOrderById(command.targetOrderId());
+                if (reservationId != null) {
+                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                    reservationId = null;
+                }
                 successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, "risk rejected: " + riskDecision.reasonCode());
-            }
-            reservationId = riskDecision.reservationId();
-
-            BigDecimal approvedQuantity = riskDecision.approvedOrderKrw()
-                    .divide(decision.price().amount(), 8, RoundingMode.DOWN);
-            if (approvedQuantity.signum() <= 0) {
-                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, "risk rejected: approved quantity is zero");
+                consecutiveFailures.set(0);
+                return new CycleResult(true, false, "order canceled: " + command.reason());
             }
 
-            String key = idempotencyService.generateKey(
-                    decision.market().value(),
-                    decision.side().name(),
-                    approvedQuantity.toPlainString(),
-                    now,
-                    riskDecision.reasonCode()
-            );
+            String key = command.clientOrderId();
             if (orderRepository.existsByIdempotencyKey(key)) {
-                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                if (reservationId != null) {
+                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                    reservationId = null;
+                }
                 successfulCycles.incrementAndGet();
                 return new CycleResult(true, false, "duplicate prevented by idempotency key");
             }
 
+            if (actionDecision.type() == OrderDecisionType.MODIFY) {
+                cancelOrderById(command.targetOrderId());
+            }
+
             Order order = Order.create(
-                    decision.market(),
-                    decision.side(),
-                    approvedQuantity,
-                    decision.price(),
+                    command.market(),
+                    command.side(),
+                    command.quantity(),
+                    command.price(),
                     now
             );
             Order placed = exchangeTradingPort.placeOrder(order);
             orderRepository.rememberIdempotencyKey(key);
             orderRepository.save(placed);
-            riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-            reservationId = null;
+            if (reservationId != null) {
+                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                reservationId = null;
+            }
             lastOrderAt.set(now);
 
             consecutiveFailures.set(0);
             successfulCycles.incrementAndGet();
-            return new CycleResult(true, true, "order placed: " + riskDecision.reasonCode());
+            return new CycleResult(true, true, "order placed: " + actionDecision.reason());
         } catch (Exception e) {
             if (reservationId != null) {
                 riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
@@ -367,6 +420,49 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
 
     private Market toMarket(String symbol) {
         return Market.of(symbol);
+    }
+
+    private OrderMarketPolicy buildOrderPolicy(BotConfig config) {
+        // Keep policy explicit so decision behavior is deterministic.
+        return new OrderMarketPolicy(
+                BigDecimal.ONE,
+                new BigDecimal("0.00000001"),
+                new BigDecimal("5000"),
+                new BigDecimal("0.0200"),
+                BigDecimal.ONE,
+                BigDecimal.ONE,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(config.cooldownSeconds())
+        );
+    }
+
+    private Optional<OpenOrderSnapshot> findLatestOpenOrder(Market market) {
+        return orderRepository.findAll().stream()
+                .filter(order -> order.market().equals(market))
+                .filter(order -> ACTIVE_ORDER_STATUSES.contains(order.status()))
+                .reduce((first, second) -> second)
+                .map(order -> new OpenOrderSnapshot(
+                        order.id(),
+                        order.market(),
+                        order.side(),
+                        order.price(),
+                        order.quantity(),
+                        null,
+                        order.createdAt()
+                ));
+    }
+
+    private void cancelOrderById(String orderId) {
+        exchangeTradingPort.cancelOrder(orderId);
+        orderRepository.findAll().stream()
+                .filter(order -> order.id().equals(orderId))
+                .findFirst()
+                .ifPresent(order -> {
+                    if (order.canCancel()) {
+                        order.cancel();
+                        orderRepository.save(order);
+                    }
+                });
     }
 
     private BotStatusSnapshot snapshot() {
