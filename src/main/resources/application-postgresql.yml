@@ -1,0 +1,21 @@
+vault:
+  persistence:
+    mode: jdbc
+  outbox:
+    relay-delay-ms: 1000
+    batch-size: 200
+    max-attempts: 5
+    retry-base-delay-ms: 500
+    retry-max-delay-ms: 30000
+    redrive-delay-ms: 60000
+    redrive-initial-delay-ms: 10000
+    redrive-batch-size: 100
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/vaulttradebot
+    username: vaulttradebot
+    password: change-me
+  sql:
+    init:
+      mode: never
