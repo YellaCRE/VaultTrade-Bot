@@ -1,0 +1,22 @@
+vault:
+  persistence:
+    mode: jdbc
+  outbox:
+    relay-delay-ms: 1000
+    batch-size: 100
+    max-attempts: 5
+    retry-base-delay-ms: 500
+    retry-max-delay-ms: 30000
+    redrive-delay-ms: 60000
+    redrive-initial-delay-ms: 10000
+    redrive-batch-size: 100
+
+spring:
+  datasource:
+    url: jdbc:h2:file:./build/vaulttradebot;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
