@@ -4,9 +4,11 @@ import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.domain.execution.Order;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "vault.persistence.mode", havingValue = "memory", matchIfMissing = true)
 public class InMemoryOrderRepository implements OrderRepository {
     private final List<Order> orders = java.util.Collections.synchronizedList(new ArrayList<>());
 
@@ -33,6 +35,19 @@ public class InMemoryOrderRepository implements OrderRepository {
     public List<Order> findAll() {
         synchronized (orders) {
             return List.copyOf(orders);
+        }
+    }
+
+    List<Order> snapshot() {
+        synchronized (orders) {
+            return new ArrayList<>(orders);
+        }
+    }
+
+    void restore(List<Order> snapshot) {
+        synchronized (orders) {
+            orders.clear();
+            orders.addAll(snapshot);
         }
     }
 }
