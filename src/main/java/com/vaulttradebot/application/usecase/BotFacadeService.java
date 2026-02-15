@@ -84,6 +84,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     private final OrderDecisionService orderDecisionService;
     private final RiskEvaluationService riskEvaluationService;
     private final IdempotentOrderCommandService idempotentOrderCommandService;
+    private final OrderPersistenceService orderPersistenceService;
     private final Strategy strategy;
 
     private final AtomicReference<BotRunState> state = new AtomicReference<>(BotRunState.STOPPED);
@@ -105,6 +106,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             OrderDecisionService orderDecisionService,
             RiskEvaluationService riskEvaluationService,
             IdempotentOrderCommandService idempotentOrderCommandService,
+            OrderPersistenceService orderPersistenceService,
             Strategy strategy
     ) {
         this.botSettingsRepository = botSettingsRepository;
@@ -117,6 +119,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         this.orderDecisionService = orderDecisionService;
         this.riskEvaluationService = riskEvaluationService;
         this.idempotentOrderCommandService = idempotentOrderCommandService;
+        this.orderPersistenceService = orderPersistenceService;
         this.strategy = strategy;
     }
 
@@ -274,7 +277,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                         now
                 );
                 Order placed = exchangeTradingPort.placeOrder(order);
-                orderRepository.save(placed);
+                orderPersistenceService.persist(placed);
                 if (reservationId != null) {
                     riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
                     reservationId = null;
