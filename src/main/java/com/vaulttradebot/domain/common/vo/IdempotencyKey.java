@@ -12,4 +12,8 @@ public record IdempotencyKey(String value) {
     public static IdempotencyKey random() {
         return new IdempotencyKey(UUID.randomUUID().toString());
     }
+
+    public static IdempotencyKey of(String value) {
+        return new IdempotencyKey(value);
+    }
 }
