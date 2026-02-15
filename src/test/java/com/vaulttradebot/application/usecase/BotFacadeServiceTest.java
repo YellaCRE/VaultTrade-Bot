@@ -72,6 +72,8 @@ class BotFacadeServiceTest {
     private Strategy strategy;
     @Mock
     private IdempotencyRepository idempotencyRepository;
+    @Mock
+    private OrderPersistenceService orderPersistenceService;
 
     private IdempotentOrderCommandService idempotentOrderCommandService;
     private BotFacadeService service;
@@ -90,6 +92,7 @@ class BotFacadeServiceTest {
                 orderDecisionService,
                 riskEvaluationService,
                 idempotentOrderCommandService,
+                orderPersistenceService,
                 strategy
         );
 
@@ -110,6 +113,7 @@ class BotFacadeServiceTest {
                 .thenReturn(Optional.empty());
         when(exchangeTradingPort.placeOrder(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderPersistenceService.persist(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.findAll()).thenReturn(List.of());
         when(idempotencyRepository.findByKey(any())).thenReturn(Optional.empty());
         when(idempotencyRepository.claim(any(), any(), any(), any())).thenReturn(true);
