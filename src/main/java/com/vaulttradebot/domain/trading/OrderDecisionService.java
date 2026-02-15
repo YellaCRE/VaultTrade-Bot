@@ -5,6 +5,13 @@ import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.vo.OrderType;
 import com.vaulttradebot.domain.risk.RiskPolicy;
+import com.vaulttradebot.domain.trading.sizing.snapshot.AccountSnapshot;
+import com.vaulttradebot.domain.trading.sizing.vo.ExchangeConstraints;
+import com.vaulttradebot.domain.trading.sizing.snapshot.ExecutionSnapshot;
+import com.vaulttradebot.domain.trading.sizing.vo.QuantityCalculationRequest;
+import com.vaulttradebot.domain.trading.sizing.vo.QuantityCalculationResult;
+import com.vaulttradebot.domain.trading.sizing.QuantityCalculator;
+import com.vaulttradebot.domain.trading.sizing.vo.RiskCaps;
 import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
 import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
 import com.vaulttradebot.domain.trading.vo.*;
@@ -23,6 +30,12 @@ import org.springframework.stereotype.Component;
 /** Converts validated signals into executable order intents. */
 @Component
 public class OrderDecisionService {
+    private final QuantityCalculator quantityCalculator;
+
+    public OrderDecisionService(QuantityCalculator quantityCalculator) {
+        this.quantityCalculator = quantityCalculator;
+    }
+
     /** Returns place/modify/cancel/hold decision from current state snapshot. */
     public OrderActionDecision decide(OrderDecisionContext context) {
         if (context.signal().action() == SignalAction.HOLD) {
@@ -58,14 +71,52 @@ public class OrderDecisionService {
 
         Side side = context.signal().action() == SignalAction.BUY ? Side.BUY : Side.SELL;
         Money roundedPrice = roundPrice(context.lastPrice(), context.marketPolicy().priceTick());
-        BigDecimal roundedQty = roundQuantity(
-                context.maxOrderKrw().divide(roundedPrice.amount(), 8, RoundingMode.DOWN),
-                context.marketPolicy().quantityStep()
-        );
-        BigDecimal notional = roundedPrice.amount().multiply(roundedQty);
-        if (roundedQty.signum() <= 0 || notional.compareTo(context.marketPolicy().minNotionalKrw()) < 0) {
-            return OrderActionDecision.hold("below exchange minimum order");
+        BigDecimal sameSideOpenQty = context.openOrder()
+                .filter(order -> order.side() == side)
+                .map(OpenOrderSnapshot::quantity)
+                .orElse(BigDecimal.ZERO);
+
+        QuantityCalculationResult sizing = quantityCalculator.calculate(new QuantityCalculationRequest(
+                side,
+                OrderType.LIMIT,
+                context.signal().confidence(),
+                context.maxOrderKrw(),
+                roundedPrice,
+                new ExchangeConstraints(
+                        context.marketPolicy().minNotionalKrw(),
+                        context.marketPolicy().minQuantity(),
+                        context.marketPolicy().maxQuantity(),
+                        context.marketPolicy().quantityStep(),
+                        context.marketPolicy().priceTick()
+                ),
+                new RiskCaps(
+                        context.maxOrderKrw(),
+                        context.maxPositionQty(),
+                        context.marketPolicy().maxSlippageRatio(),
+                        context.marketPolicy().allowStepUpForMinNotional()
+                ),
+                new ExecutionSnapshot(
+                        context.lastPrice(),
+                        context.bestBidPrice(),
+                        context.bestAskPrice(),
+                        context.slippageBufferRatio(),
+                        context.feeRatio(),
+                        context.topBookQty(),
+                        context.marketPolicy().depthFactor()
+                ),
+                new AccountSnapshot(
+                        context.availableQuoteKrw(),
+                        context.availableBaseQty(),
+                        context.reservedQuoteKrw(),
+                        context.reservedBaseQty(),
+                        context.currentBaseQty(),
+                        sameSideOpenQty
+                )
+        ));
+        if (!sizing.isTradable()) {
+            return OrderActionDecision.hold(sizing.holdReason());
         }
+        BigDecimal roundedQty = sizing.quantity();
 
         String clientOrderId = generateClientOrderId(
                 context.marketEventId(),
@@ -199,11 +250,6 @@ public class OrderDecisionService {
     private Money roundPrice(Money rawPrice, BigDecimal priceTick) {
         BigDecimal ticks = rawPrice.amount().divide(priceTick, 0, RoundingMode.DOWN);
         return Money.krw(ticks.multiply(priceTick));
-    }
-
-    private BigDecimal roundQuantity(BigDecimal rawQty, BigDecimal quantityStep) {
-        BigDecimal steps = rawQty.divide(quantityStep, 0, RoundingMode.DOWN);
-        return steps.multiply(quantityStep).setScale(8, RoundingMode.DOWN);
     }
 
     private boolean shouldReplace(

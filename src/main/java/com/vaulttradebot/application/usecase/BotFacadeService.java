@@ -45,6 +45,7 @@ import com.vaulttradebot.domain.trading.strategy.vo.StrategyContext;
 import com.vaulttradebot.domain.trading.strategy.snapshot.StrategyPositionSnapshot;
 import com.vaulttradebot.domain.common.vo.Timeframe;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -161,6 +162,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             Market market = toMarket(config.marketSymbol());
             Money lastPrice = marketDataPort.getLastPrice(market);
             Optional<OpenOrderSnapshot> openOrder = findLatestOpenOrder(market);
+            Optional<Position> positionAtCycle = portfolioRepository.findByMarket(config.marketSymbol());
 
             SignalDecision signal = determineSignal(config, market, now);
             boolean riskAllowed = true;
@@ -189,11 +191,20 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                             signal,
                             market,
                             lastPrice,
-                            null,
-                            null,
+                            lastPrice,
+                            lastPrice,
                             now,
                             now,
                             approvedOrderKrw,
+                            resolveMaxPositionQty(config, lastPrice),
+                            resolveAvailableQuoteKrw(config, lastPrice, positionAtCycle),
+                            positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
+                            resolveReservedQuoteKrw(openOrder),
+                            resolveReservedBaseQty(openOrder),
+                            positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
+                            new BigDecimal("0.0005"),
+                            new BigDecimal("0.0020"),
+                            openOrder.map(OpenOrderSnapshot::quantity).orElse(BigDecimal.ZERO),
                             riskAllowed,
                             riskReason,
                             openOrder,
@@ -428,12 +439,50 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 BigDecimal.ONE,
                 new BigDecimal("0.00000001"),
                 new BigDecimal("5000"),
+                new BigDecimal("0.00000001"),
+                new BigDecimal("1000"),
+                new BigDecimal("0.3000"),
+                BigDecimal.ONE,
+                true,
                 new BigDecimal("0.0200"),
                 BigDecimal.ONE,
                 BigDecimal.ONE,
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(config.cooldownSeconds())
         );
+    }
+
+    private BigDecimal resolveMaxPositionQty(BotConfig config, Money lastPrice) {
+        BigDecimal maxExposureKrw = config.initialCashKrw().multiply(config.maxExposureRatio());
+        if (lastPrice.amount().signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return maxExposureKrw.divide(lastPrice.amount(), 8, RoundingMode.DOWN);
+    }
+
+    private BigDecimal resolveAvailableQuoteKrw(
+            BotConfig config,
+            Money lastPrice,
+            Optional<Position> position
+    ) {
+        BigDecimal currentExposure = position
+                .map(pos -> pos.quantity().multiply(lastPrice.amount()))
+                .orElse(BigDecimal.ZERO);
+        return config.initialCashKrw().subtract(currentExposure).max(BigDecimal.ZERO);
+    }
+
+    private BigDecimal resolveReservedQuoteKrw(Optional<OpenOrderSnapshot> openOrder) {
+        return openOrder
+                .filter(order -> order.side() == Side.BUY)
+                .map(order -> order.price().amount().multiply(order.quantity()))
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private BigDecimal resolveReservedBaseQty(Optional<OpenOrderSnapshot> openOrder) {
+        return openOrder
+                .filter(order -> order.side() == Side.SELL)
+                .map(OpenOrderSnapshot::quantity)
+                .orElse(BigDecimal.ZERO);
     }
 
     private Optional<OpenOrderSnapshot> findLatestOpenOrder(Market market) {

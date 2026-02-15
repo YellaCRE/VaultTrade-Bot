@@ -19,6 +19,15 @@ public record OrderDecisionContext(
         Instant marketDataAsOf,
         Instant now,
         BigDecimal maxOrderKrw,
+        BigDecimal maxPositionQty,
+        BigDecimal availableQuoteKrw,
+        BigDecimal availableBaseQty,
+        BigDecimal reservedQuoteKrw,
+        BigDecimal reservedBaseQty,
+        BigDecimal currentBaseQty,
+        BigDecimal feeRatio,
+        BigDecimal slippageBufferRatio,
+        BigDecimal topBookQty,
         boolean riskAllowed,
         String riskReason,
         Optional<OpenOrderSnapshot> openOrder,
@@ -28,12 +37,18 @@ public record OrderDecisionContext(
 ) {
     public OrderDecisionContext {
         if (signal == null || market == null || lastPrice == null || marketDataAsOf == null
-                || now == null || maxOrderKrw == null || riskReason == null || riskReason.isBlank()
+                || now == null || maxOrderKrw == null || maxPositionQty == null || availableQuoteKrw == null
+                || availableBaseQty == null || reservedQuoteKrw == null || reservedBaseQty == null
+                || currentBaseQty == null || feeRatio == null || slippageBufferRatio == null
+                || topBookQty == null || riskReason == null || riskReason.isBlank()
                 || openOrder == null || marketPolicy == null) {
             throw new IllegalArgumentException("context fields must not be null or blank");
         }
-        if (maxOrderKrw.signum() <= 0) {
-            throw new IllegalArgumentException("maxOrderKrw must be positive");
+        if (maxOrderKrw.signum() <= 0 || maxPositionQty.signum() < 0 || availableQuoteKrw.signum() < 0
+                || availableBaseQty.signum() < 0 || reservedQuoteKrw.signum() < 0 || reservedBaseQty.signum() < 0
+                || currentBaseQty.signum() < 0 || feeRatio.signum() < 0 || slippageBufferRatio.signum() < 0
+                || topBookQty.signum() < 0) {
+            throw new IllegalArgumentException("context numeric values must be valid");
         }
     }
 }

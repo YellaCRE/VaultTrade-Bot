@@ -7,6 +7,7 @@ import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.common.vo.Timeframe;
 import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
+import com.vaulttradebot.domain.trading.sizing.QuantityCalculator;
 import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -17,12 +18,17 @@ import com.vaulttradebot.domain.trading.vo.*;
 import org.junit.jupiter.api.Test;
 
 class OrderDecisionServiceTest {
-    private final OrderDecisionService service = new OrderDecisionService();
+    private final OrderDecisionService service = new OrderDecisionService(new QuantityCalculator());
     private static final Instant NOW = Instant.parse("2026-02-15T10:00:00Z");
     private static final OrderMarketPolicy POLICY = new OrderMarketPolicy(
             new BigDecimal("1"),
             new BigDecimal("0.00000001"),
             new BigDecimal("5000"),
+            new BigDecimal("0.00000001"),
+            new BigDecimal("1000"),
+            new BigDecimal("0.3000"),
+            BigDecimal.ONE,
+            true,
             new BigDecimal("0.01"),
             new BigDecimal("1"),
             new BigDecimal("1"),
@@ -82,7 +88,7 @@ class OrderDecisionServiceTest {
         assertThat(command.market()).isEqualTo(Market.of("KRW-BTC"));
         assertThat(command.side()).isEqualTo(Side.BUY);
         assertThat(command.price().amount()).isEqualByComparingTo("50000000");
-        assertThat(command.quantity()).isEqualByComparingTo("0.00200000");
+        assertThat(command.quantity()).isEqualByComparingTo("0.00160000");
         assertThat(command.clientOrderId()).startsWith("vtb-");
     }
 
@@ -116,7 +122,7 @@ class OrderDecisionServiceTest {
                 Market.of("KRW-BTC"),
                 Side.BUY,
                 Money.krw(new BigDecimal("50000000")),
-                new BigDecimal("0.00200000"),
+                new BigDecimal("0.00160000"),
                 "different-client-id",
                 NOW.minusSeconds(20)
         );
@@ -179,6 +185,15 @@ class OrderDecisionServiceTest {
                 NOW.minusSeconds(30),
                 NOW,
                 new BigDecimal("100000"),
+                new BigDecimal("1"),
+                new BigDecimal("1000000"),
+                new BigDecimal("1"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("0.0005"),
+                new BigDecimal("0.0020"),
+                new BigDecimal("1"),
                 true,
                 "RISK_OK",
                 Optional.empty(),
@@ -204,6 +219,15 @@ class OrderDecisionServiceTest {
                 NOW.minusSeconds(1),
                 NOW,
                 new BigDecimal("100000"),
+                new BigDecimal("1"),
+                new BigDecimal("1000000"),
+                new BigDecimal("1"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("0.0005"),
+                new BigDecimal("0.0020"),
+                new BigDecimal("1"),
                 true,
                 "RISK_OK",
                 Optional.empty(),
@@ -229,6 +253,15 @@ class OrderDecisionServiceTest {
                 NOW.minusSeconds(1),
                 NOW,
                 new BigDecimal("100000"),
+                new BigDecimal("1"),
+                new BigDecimal("1000000"),
+                new BigDecimal("1"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("0.0005"),
+                new BigDecimal("0.0020"),
+                new BigDecimal("1"),
                 true,
                 "RISK_OK",
                 Optional.empty(),
@@ -256,6 +289,15 @@ class OrderDecisionServiceTest {
                 NOW.minusSeconds(1),
                 NOW,
                 new BigDecimal("100000"),
+                new BigDecimal("1"),
+                new BigDecimal("1000000"),
+                new BigDecimal("1"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("0.0005"),
+                new BigDecimal("0.0020"),
+                new BigDecimal("1"),
                 riskAllowed,
                 riskAllowed ? "RISK_OK" : "RISK_DENIED",
                 openOrder,
