@@ -16,8 +16,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
-@Component
 /** In-memory deterministic market data source for local runs/tests. */
+@Component
 public class StaticMarketDataAdapter implements MarketDataPort {
     private static final Asset KRW = Asset.krw();
 

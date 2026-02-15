@@ -95,10 +95,8 @@ public class MovingAverageCrossStrategy implements Strategy {
                 context.symbol(),
                 context.timeframe()
         );
-        if (action != SignalAction.HOLD) {
-            Instant cooldownUntil = signalAt.plus(context.timeframe().duration().multipliedBy(config.cooldownBars()));
-            states.put(key, new StrategyState(action, cooldownUntil));
-        }
+        Instant cooldownUntil = signalAt.plus(context.timeframe().duration().multipliedBy(config.cooldownBars()));
+        states.put(key, new StrategyState(action, cooldownUntil));
         return decision;
     }
 

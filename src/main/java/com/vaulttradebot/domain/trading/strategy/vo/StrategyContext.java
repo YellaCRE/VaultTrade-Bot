@@ -19,7 +19,7 @@ public record StrategyContext(
     /** Validates the strategy input contract before evaluation. */
     public StrategyContext {
         if (symbol == null || symbol.isBlank() || marketDataWindow == null
-                || timeframe == null || now == null || positionSnapshot == null) {
+                || timeframe == null || now == null || positionSnapshot.isEmpty()) {
             throw new IllegalArgumentException("strategy context fields must not be null or blank");
         }
     }

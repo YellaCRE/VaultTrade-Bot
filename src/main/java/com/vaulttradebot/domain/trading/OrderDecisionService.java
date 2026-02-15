@@ -13,8 +13,8 @@ import com.vaulttradebot.domain.trading.vo.SignalAction;
 import com.vaulttradebot.domain.trading.vo.TradingSignal;
 import org.springframework.stereotype.Component;
 
-@Component
 /** Converts validated signals into executable order intents. */
+@Component
 public class OrderDecisionService {
     /** Builds an order candidate from a legacy trading signal and order budget. */
     public Optional<OrderDecision> decide(
