@@ -7,8 +7,4 @@ public interface OrderRepository {
     Order save(Order order);
 
     List<Order> findAll();
-
-    boolean existsByIdempotencyKey(String idempotencyKey);
-
-    void rememberIdempotencyKey(String idempotencyKey);
 }

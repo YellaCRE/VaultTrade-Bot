@@ -12,11 +12,12 @@ import static org.mockito.Mockito.when;
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
+import com.vaulttradebot.application.port.out.IdempotencyRepository;
 import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
-import com.vaulttradebot.domain.common.IdempotencyService;
+import com.vaulttradebot.application.idempotency.IdempotentOrderCommandService;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Timeframe;
@@ -69,12 +70,15 @@ class BotFacadeServiceTest {
     private RiskEvaluationService riskEvaluationService;
     @Mock
     private Strategy strategy;
+    @Mock
+    private IdempotencyRepository idempotencyRepository;
 
-    private final IdempotencyService idempotencyService = new IdempotencyService();
+    private IdempotentOrderCommandService idempotentOrderCommandService;
     private BotFacadeService service;
 
     @BeforeEach
     void setUp() {
+        idempotentOrderCommandService = new IdempotentOrderCommandService(idempotencyRepository);
         service = new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
@@ -85,7 +89,7 @@ class BotFacadeServiceTest {
                 clockPort,
                 orderDecisionService,
                 riskEvaluationService,
-                idempotencyService,
+                idempotentOrderCommandService,
                 strategy
         );
 
@@ -107,6 +111,8 @@ class BotFacadeServiceTest {
         when(exchangeTradingPort.placeOrder(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.findAll()).thenReturn(List.of());
+        when(idempotencyRepository.findByKey(any())).thenReturn(Optional.empty());
+        when(idempotencyRepository.claim(any(), any(), any(), any())).thenReturn(true);
     }
 
     @Test

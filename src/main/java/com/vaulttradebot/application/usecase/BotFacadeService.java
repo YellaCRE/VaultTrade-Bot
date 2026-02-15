@@ -11,10 +11,12 @@ import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
+import com.vaulttradebot.application.idempotency.IdempotencyConflictException;
+import com.vaulttradebot.application.idempotency.IdempotencyHasher;
+import com.vaulttradebot.application.idempotency.IdempotentOrderCommandService;
 import com.vaulttradebot.application.query.BotStatusSnapshot;
 import com.vaulttradebot.application.query.MetricsSnapshot;
 import com.vaulttradebot.application.query.PortfolioSnapshot;
-import com.vaulttradebot.domain.common.IdempotencyService;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
@@ -63,6 +65,8 @@ import org.springframework.stereotype.Service;
 public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, RunTradingCycleUseCase, BotQueryUseCase {
     private static final int CIRCUIT_BREAKER_THRESHOLD = 3;
     private static final String DEFAULT_ACCOUNT_ID = "default-account";
+    // Keep idempotency keys for a bounded retry window.
+    private static final Duration ORDER_IDEMPOTENCY_TTL = Duration.ofHours(1);
     private static final Set<OrderStatus> ACTIVE_ORDER_STATUSES = Set.of(
             OrderStatus.NEW,
             OrderStatus.OPEN,
@@ -79,7 +83,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     private final ClockPort clockPort;
     private final OrderDecisionService orderDecisionService;
     private final RiskEvaluationService riskEvaluationService;
-    private final IdempotencyService idempotencyService;
+    private final IdempotentOrderCommandService idempotentOrderCommandService;
     private final Strategy strategy;
 
     private final AtomicReference<BotRunState> state = new AtomicReference<>(BotRunState.STOPPED);
@@ -100,7 +104,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             ClockPort clockPort,
             OrderDecisionService orderDecisionService,
             RiskEvaluationService riskEvaluationService,
-            IdempotencyService idempotencyService,
+            IdempotentOrderCommandService idempotentOrderCommandService,
             Strategy strategy
     ) {
         this.botSettingsRepository = botSettingsRepository;
@@ -112,7 +116,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         this.clockPort = clockPort;
         this.orderDecisionService = orderDecisionService;
         this.riskEvaluationService = riskEvaluationService;
-        this.idempotencyService = idempotencyService;
+        this.idempotentOrderCommandService = idempotentOrderCommandService;
         this.strategy = strategy;
     }
 
@@ -226,6 +230,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
 
             OrderCommand command = actionDecision.command().orElseThrow();
             if (actionDecision.type() == OrderDecisionType.CANCEL) {
+                // Cancel is naturally idempotent at aggregate level.
                 cancelOrderById(command.targetOrderId());
                 if (reservationId != null) {
                     riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
@@ -237,38 +242,62 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             }
 
             String key = command.clientOrderId();
-            if (orderRepository.existsByIdempotencyKey(key)) {
+            // Hash command payload to detect "same key, different request".
+            String requestHash = buildOrderCommandHash(command);
+            Optional<CycleResult> replayed = idempotentOrderCommandService.claimOrReplay(
+                    key,
+                    requestHash,
+                    now,
+                    ORDER_IDEMPOTENCY_TTL
+            );
+            if (replayed.isPresent()) {
                 if (reservationId != null) {
                     riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
                     reservationId = null;
                 }
                 successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, "duplicate prevented by idempotency key");
+                consecutiveFailures.set(0);
+                // Replay the exact first response snapshot for strict idempotency.
+                return replayed.get();
             }
 
-            if (actionDecision.type() == OrderDecisionType.MODIFY) {
-                cancelOrderById(command.targetOrderId());
-            }
+            try {
+                if (actionDecision.type() == OrderDecisionType.MODIFY) {
+                    cancelOrderById(command.targetOrderId());
+                }
 
-            Order order = Order.create(
-                    command.market(),
-                    command.side(),
-                    command.quantity(),
-                    command.price(),
-                    now
-            );
-            Order placed = exchangeTradingPort.placeOrder(order);
-            orderRepository.rememberIdempotencyKey(key);
-            orderRepository.save(placed);
+                Order order = Order.create(
+                        command.market(),
+                        command.side(),
+                        command.quantity(),
+                        command.price(),
+                        now
+                );
+                Order placed = exchangeTradingPort.placeOrder(order);
+                orderRepository.save(placed);
+                if (reservationId != null) {
+                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
+                    reservationId = null;
+                }
+                lastOrderAt.set(now);
+
+                CycleResult result = new CycleResult(true, true, "order placed: " + actionDecision.reason());
+                idempotentOrderCommandService.complete(key, requestHash, result);
+                consecutiveFailures.set(0);
+                successfulCycles.incrementAndGet();
+                return result;
+            } catch (Exception placeError) {
+                // Release pending claim so client can retry after transient failures.
+                idempotentOrderCommandService.releaseClaim(key, requestHash);
+                throw placeError;
+            }
+        } catch (IdempotencyConflictException conflict) {
             if (reservationId != null) {
                 riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                reservationId = null;
             }
-            lastOrderAt.set(now);
-
-            consecutiveFailures.set(0);
             successfulCycles.incrementAndGet();
-            return new CycleResult(true, true, "order placed: " + actionDecision.reason());
+            consecutiveFailures.set(0);
+            return new CycleResult(true, false, "idempotency conflict: " + conflict.getMessage());
         } catch (Exception e) {
             if (reservationId != null) {
                 riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
@@ -427,6 +456,28 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 positionSnapshot
         );
         return strategy.evaluate(context);
+    }
+
+    private String buildOrderCommandHash(OrderCommand command) {
+        // Build canonical payload string before hashing.
+        String payload = String.join("|",
+                command.type().name(),
+                valueOrEmpty(command.targetOrderId()),
+                command.market() == null ? "" : command.market().value(),
+                command.side() == null ? "" : command.side().name(),
+                command.orderType() == null ? "" : command.orderType().name(),
+                command.price() == null ? "" : canonical(command.price().amount()),
+                command.quantity() == null ? "" : canonical(command.quantity())
+        );
+        return IdempotencyHasher.sha256(payload);
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String canonical(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
     }
 
     private Market toMarket(String symbol) {
