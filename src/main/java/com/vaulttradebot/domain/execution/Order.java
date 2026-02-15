@@ -117,6 +117,43 @@ public class Order {
         );
     }
 
+    /** Rehydrates an existing order snapshot from persistent storage. */
+    public static Order rehydrate(
+            OrderId id,
+            Market market,
+            OrderType orderType,
+            Side side,
+            Quantity quantity,
+            Price price,
+            Money minimumProfitPrice,
+            StrategyId strategyId,
+            IdempotencyKey idempotencyKey,
+            Instant createdAt,
+            OrderStatus status,
+            Quantity executedQuantity,
+            Money executedAmount,
+            long version
+    ) {
+        Order order = new Order(
+                id,
+                market,
+                orderType,
+                side,
+                quantity,
+                price,
+                minimumProfitPrice,
+                strategyId,
+                idempotencyKey,
+                createdAt
+        );
+        order.status = status;
+        order.executedQuantity = executedQuantity;
+        order.executedAmount = executedAmount;
+        order.version = version;
+        order.domainEvents.clear();
+        return order;
+    }
+
     /** Transitions the order from NEW to OPEN after exchange acceptance. */
     public void acceptByExchange() {
         ensureStatus(OrderStatus.NEW);
@@ -199,6 +236,17 @@ public class Order {
         List<OrderDomainEvent> snapshot = List.copyOf(domainEvents);
         domainEvents.clear();
         return snapshot;
+    }
+
+    /** Restores drained domain events when persistence transaction fails. */
+    public void restoreDomainEvents(List<OrderDomainEvent> events) {
+        if (events == null) {
+            throw new IllegalArgumentException("events must not be null");
+        }
+        if (events.isEmpty()) {
+            return;
+        }
+        this.domainEvents.addAll(0, events);
     }
 
     /** Returns the order identifier as a string value. */
