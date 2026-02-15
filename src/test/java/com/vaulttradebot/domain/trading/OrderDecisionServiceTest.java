@@ -7,6 +7,9 @@ import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import java.math.BigDecimal;
 import java.util.Optional;
+
+import com.vaulttradebot.domain.trading.vo.SignalAction;
+import com.vaulttradebot.domain.trading.vo.TradingSignal;
 import org.junit.jupiter.api.Test;
 
 class OrderDecisionServiceTest {

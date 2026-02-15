@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.ZoneId;
+
 import org.junit.jupiter.api.Test;
 
 class RiskPolicyTest {
