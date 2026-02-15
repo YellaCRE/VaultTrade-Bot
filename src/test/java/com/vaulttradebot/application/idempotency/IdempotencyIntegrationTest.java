@@ -185,16 +185,17 @@ class IdempotencyIntegrationTest {
         // Two concurrent claim attempts for same key/hash: only one should win.
         String key = "idem-concurrent-1";
         String requestHash = IdempotencyHasher.sha256("same-payload");
-        Instant now = NOW;
         Duration ttl = Duration.ofMinutes(10);
         CountDownLatch latch = new CountDownLatch(1);
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Callable<Boolean> attemptClaim = () -> {
-                latch.await(1, TimeUnit.SECONDS);
+                boolean released = latch.await(1, TimeUnit.SECONDS);
+                if (!released) {
+                    throw new IllegalStateException("latch wait timed out");
+                }
                 try {
-                    Optional<CycleResult> replay = idempotentOrderCommandService.claimOrReplay(key, requestHash, now, ttl);
+                    Optional<CycleResult> replay = idempotentOrderCommandService.claimOrReplay(key, requestHash, NOW, ttl);
                     return replay.isEmpty();
                 } catch (IllegalStateException inProgress) {
                     return false;
@@ -210,8 +211,6 @@ class IdempotencyIntegrationTest {
             int claimedCount = (firstClaimed ? 1 : 0) + (secondClaimed ? 1 : 0);
             // Exactly one thread must own the key.
             assertThat(claimedCount).isEqualTo(1);
-        } finally {
-            executor.shutdownNow();
         }
     }
 
