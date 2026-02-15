@@ -14,12 +14,12 @@ public record StrategyContext(
         List<Candle> marketDataWindow,
         Timeframe timeframe,
         Instant now,
-        Optional<StrategyPositionSnapshot> positionSnapshot
+        Optional<StrategyPositionSnapshot> strategyPosition
 ) {
     /** Validates the strategy input contract before evaluation. */
     public StrategyContext {
         if (symbol == null || symbol.isBlank() || marketDataWindow == null
-                || timeframe == null || now == null || positionSnapshot == null) {
+                || timeframe == null || now == null || strategyPosition == null) {
             throw new IllegalArgumentException("strategy context fields must not be null or blank");
         }
     }
