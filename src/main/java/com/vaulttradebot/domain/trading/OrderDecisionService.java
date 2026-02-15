@@ -4,7 +4,6 @@ import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.vo.OrderType;
-import com.vaulttradebot.domain.risk.RiskPolicy;
 import com.vaulttradebot.domain.trading.model.sizing.snapshot.AccountSnapshot;
 import com.vaulttradebot.domain.trading.model.sizing.vo.ExchangeConstraints;
 import com.vaulttradebot.domain.trading.model.sizing.snapshot.ExecutionSnapshot;
@@ -210,16 +209,6 @@ public class OrderDecisionService {
         }
         // Bridge strategy output to the legacy signal-based decision path.
         return decide(new TradingSignal(signal.action(), signal.reason()), market, lastPrice, maxOrderKrw);
-    }
-
-    /** Convenience overload that reads max order size from risk policy. */
-    public Optional<OrderDecision> decide(
-            TradingSignal signal,
-            Market market,
-            Money lastPrice,
-            RiskPolicy riskPolicy
-    ) {
-        return decide(signal, market, lastPrice, riskPolicy.maxOrderKrw());
     }
 
     private boolean isStale(Instant marketDataAsOf, Instant now, Duration staleAfter) {
