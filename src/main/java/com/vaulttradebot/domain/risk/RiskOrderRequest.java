@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.risk.event;
+package com.vaulttradebot.domain.risk;
 
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;

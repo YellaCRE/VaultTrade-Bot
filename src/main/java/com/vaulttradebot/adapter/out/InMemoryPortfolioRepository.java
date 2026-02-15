@@ -2,7 +2,7 @@ package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.PortfolioRepository;
 import com.vaulttradebot.domain.portfolio.Position;
-import com.vaulttradebot.domain.portfolio.snapshot.PositionSnapshot;
+import com.vaulttradebot.domain.portfolio.PositionSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

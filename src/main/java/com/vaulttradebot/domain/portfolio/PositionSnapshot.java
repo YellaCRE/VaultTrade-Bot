@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.portfolio.snapshot;
+package com.vaulttradebot.domain.portfolio;
 
 import java.math.BigDecimal;
 import java.time.Instant;

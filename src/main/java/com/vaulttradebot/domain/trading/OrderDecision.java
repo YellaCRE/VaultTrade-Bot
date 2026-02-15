@@ -12,6 +12,7 @@ public record OrderDecision(
         Money price,
         String reason
 ) {
+    /** Validates the order intent derived from strategy signals. */
     public OrderDecision {
         if (market == null || side == null || quantity == null || price == null) {
             throw new IllegalArgumentException("decision fields must not be null");

@@ -1,7 +1,7 @@
 package com.vaulttradebot.domain.risk.vo;
 
 import com.vaulttradebot.domain.risk.RiskPolicy;
-import com.vaulttradebot.domain.risk.event.RiskOrderRequest;
+import com.vaulttradebot.domain.risk.RiskOrderRequest;
 import com.vaulttradebot.domain.risk.snapshot.RiskAccountSnapshot;
 import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
 

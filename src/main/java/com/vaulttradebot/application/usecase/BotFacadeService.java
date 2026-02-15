@@ -17,6 +17,7 @@ import com.vaulttradebot.application.query.PortfolioSnapshot;
 import com.vaulttradebot.domain.common.IdempotencyService;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
+import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.ops.BotConfig;
 import com.vaulttradebot.domain.ops.BotRunState;
@@ -27,12 +28,15 @@ import com.vaulttradebot.domain.risk.vo.RiskDecision;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
 import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
 import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
-import com.vaulttradebot.domain.risk.event.RiskOrderRequest;
+import com.vaulttradebot.domain.risk.RiskOrderRequest;
 import com.vaulttradebot.domain.risk.RiskPolicy;
 import com.vaulttradebot.domain.trading.OrderDecision;
 import com.vaulttradebot.domain.trading.OrderDecisionService;
-import com.vaulttradebot.domain.trading.SignalAction;
-import com.vaulttradebot.domain.trading.TradingSignal;
+import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.strategy.Strategy;
+import com.vaulttradebot.domain.trading.strategy.vo.StrategyContext;
+import com.vaulttradebot.domain.trading.strategy.snapshot.StrategyPositionSnapshot;
+import com.vaulttradebot.domain.common.vo.Timeframe;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -62,6 +66,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     private final OrderDecisionService orderDecisionService;
     private final RiskEvaluationService riskEvaluationService;
     private final IdempotencyService idempotencyService;
+    private final Strategy strategy;
 
     private final AtomicReference<BotRunState> state = new AtomicReference<>(BotRunState.STOPPED);
     private final AtomicReference<Instant> lastCycleAt = new AtomicReference<>();
@@ -81,7 +86,8 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             ClockPort clockPort,
             OrderDecisionService orderDecisionService,
             RiskEvaluationService riskEvaluationService,
-            IdempotencyService idempotencyService
+            IdempotencyService idempotencyService,
+            Strategy strategy
     ) {
         this.botSettingsRepository = botSettingsRepository;
         this.marketDataPort = marketDataPort;
@@ -93,6 +99,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         this.orderDecisionService = orderDecisionService;
         this.riskEvaluationService = riskEvaluationService;
         this.idempotencyService = idempotencyService;
+        this.strategy = strategy;
     }
 
     @Override
@@ -141,14 +148,14 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             Market market = toMarket(config.marketSymbol());
             Money lastPrice = marketDataPort.getLastPrice(market);
 
-            TradingSignal signal = determineSignal(config, lastPrice);
+            SignalDecision signal = determineSignal(config, market, now);
             Optional<OrderDecision> decisionOpt = orderDecisionService.decide(
                     signal, market, lastPrice, config.maxOrderKrw()
             );
             if (decisionOpt.isEmpty()) {
                 consecutiveFailures.set(0);
                 successfulCycles.incrementAndGet();
-                return new CycleResult(true, false, "no trade signal");
+                return new CycleResult(true, false, "no trade signal: " + signal.reason());
             }
 
             OrderDecision decision = decisionOpt.get();
@@ -340,11 +347,22 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         );
     }
 
-    private TradingSignal determineSignal(BotConfig config, Money lastPrice) {
-        if (lastPrice.amount().compareTo(config.buyThresholdPrice()) <= 0) {
-            return new TradingSignal(SignalAction.BUY, "price under threshold");
-        }
-        return new TradingSignal(SignalAction.HOLD, "no signal");
+    private SignalDecision determineSignal(BotConfig config, Market market, Instant now) {
+        Timeframe timeframe = Timeframe.M1;
+        Optional<StrategyPositionSnapshot> positionSnapshot = portfolioRepository.findByMarket(config.marketSymbol())
+                .map(position -> new StrategyPositionSnapshot(
+                        position.quantity().signum() >= 0 ? Side.BUY : Side.SELL,
+                        position.quantity()
+                ));
+        // Strategy is pure: all required inputs are assembled here and injected once.
+        StrategyContext context = new StrategyContext(
+                config.marketSymbol(),
+                marketDataPort.getRecentCandles(market, timeframe, 150, now),
+                timeframe,
+                now,
+                positionSnapshot
+        );
+        return strategy.evaluate(context);
     }
 
     private Market toMarket(String symbol) {
