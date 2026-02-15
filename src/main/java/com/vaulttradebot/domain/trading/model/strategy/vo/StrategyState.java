@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.trading.strategy.vo;
+package com.vaulttradebot.domain.trading.model.strategy.vo;
 
 import com.vaulttradebot.domain.trading.vo.SignalAction;
 import java.time.Instant;

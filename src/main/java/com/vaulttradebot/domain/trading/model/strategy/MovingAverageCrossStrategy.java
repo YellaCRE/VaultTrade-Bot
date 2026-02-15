@@ -1,10 +1,10 @@
-package com.vaulttradebot.domain.trading.strategy;
+package com.vaulttradebot.domain.trading.model.strategy;
 
 import com.vaulttradebot.domain.common.vo.Candle;
-import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
-import com.vaulttradebot.domain.trading.strategy.vo.StrategyContext;
-import com.vaulttradebot.domain.trading.strategy.vo.StrategyKey;
-import com.vaulttradebot.domain.trading.strategy.vo.StrategyState;
+import com.vaulttradebot.domain.trading.model.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyContext;
+import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyKey;
+import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyState;
 import com.vaulttradebot.domain.trading.vo.SignalAction;
 import java.math.BigDecimal;
 import java.math.MathContext;

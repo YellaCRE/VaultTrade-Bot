@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.trading.sizing.snapshot;
+package com.vaulttradebot.domain.trading.model.sizing.snapshot;
 
 import com.vaulttradebot.domain.common.vo.Money;
 import java.math.BigDecimal;

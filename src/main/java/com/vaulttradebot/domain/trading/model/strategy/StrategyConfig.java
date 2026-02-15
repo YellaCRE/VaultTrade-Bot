@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.trading.strategy;
+package com.vaulttradebot.domain.trading.model.strategy;
 
 /** Tunable parameters for MA-cross strategy behavior. */
 public record StrategyConfig(

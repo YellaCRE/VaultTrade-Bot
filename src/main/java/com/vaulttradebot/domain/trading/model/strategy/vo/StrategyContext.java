@@ -1,8 +1,8 @@
-package com.vaulttradebot.domain.trading.strategy.vo;
+package com.vaulttradebot.domain.trading.model.strategy.vo;
 
 import com.vaulttradebot.domain.common.vo.Candle;
 import com.vaulttradebot.domain.common.vo.Timeframe;
-import com.vaulttradebot.domain.trading.strategy.snapshot.StrategyPositionSnapshot;
+import com.vaulttradebot.domain.trading.model.strategy.snapshot.StrategyPositionSnapshot;
 
 import java.time.Instant;
 import java.util.List;

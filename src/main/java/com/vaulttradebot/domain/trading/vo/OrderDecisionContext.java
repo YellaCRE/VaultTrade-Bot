@@ -4,7 +4,7 @@ import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.trading.OrderMarketPolicy;
 import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
-import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.model.strategy.vo.SignalDecision;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;

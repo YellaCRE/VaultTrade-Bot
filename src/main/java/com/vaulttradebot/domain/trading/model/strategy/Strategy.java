@@ -1,7 +1,7 @@
-package com.vaulttradebot.domain.trading.strategy;
+package com.vaulttradebot.domain.trading.model.strategy;
 
-import com.vaulttradebot.domain.trading.strategy.vo.SignalDecision;
-import com.vaulttradebot.domain.trading.strategy.vo.StrategyContext;
+import com.vaulttradebot.domain.trading.model.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyContext;
 
 /** Produces a deterministic signal decision from normalized market context. */
 public interface Strategy {

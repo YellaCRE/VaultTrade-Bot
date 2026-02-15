@@ -1,10 +1,10 @@
-package com.vaulttradebot.domain.trading.sizing.vo;
+package com.vaulttradebot.domain.trading.model.sizing.vo;
 
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.vo.OrderType;
-import com.vaulttradebot.domain.trading.sizing.snapshot.AccountSnapshot;
-import com.vaulttradebot.domain.trading.sizing.snapshot.ExecutionSnapshot;
+import com.vaulttradebot.domain.trading.model.sizing.snapshot.AccountSnapshot;
+import com.vaulttradebot.domain.trading.model.sizing.snapshot.ExecutionSnapshot;
 
 import java.math.BigDecimal;
 

@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.trading.sizing.vo;
+package com.vaulttradebot.domain.trading.model.sizing.vo;
 
 import java.math.BigDecimal;
 

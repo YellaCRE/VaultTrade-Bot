@@ -1,4 +1,4 @@
-package com.vaulttradebot.domain.trading.sizing;
+package com.vaulttradebot.domain.trading.model.sizing;
 
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
@@ -6,11 +6,11 @@ import com.vaulttradebot.domain.execution.vo.OrderType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-import com.vaulttradebot.domain.trading.sizing.vo.QuantityCalculationResult;
-import com.vaulttradebot.domain.trading.sizing.snapshot.AccountSnapshot;
-import com.vaulttradebot.domain.trading.sizing.snapshot.ExecutionSnapshot;
-import com.vaulttradebot.domain.trading.sizing.vo.ExchangeConstraints;
-import com.vaulttradebot.domain.trading.sizing.vo.QuantityCalculationRequest;
+import com.vaulttradebot.domain.trading.model.sizing.vo.QuantityCalculationResult;
+import com.vaulttradebot.domain.trading.model.sizing.snapshot.AccountSnapshot;
+import com.vaulttradebot.domain.trading.model.sizing.snapshot.ExecutionSnapshot;
+import com.vaulttradebot.domain.trading.model.sizing.vo.ExchangeConstraints;
+import com.vaulttradebot.domain.trading.model.sizing.vo.QuantityCalculationRequest;
 import org.springframework.stereotype.Component;
 
 /** Deterministic quantity calculator with exchange, risk, and execution checks. */
