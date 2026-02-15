@@ -18,6 +18,7 @@ import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
 import com.vaulttradebot.application.usecase.BotFacadeService;
 import com.vaulttradebot.application.usecase.CycleResult;
+import com.vaulttradebot.application.usecase.OrderPersistenceService;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
@@ -79,6 +80,8 @@ class IdempotencyIntegrationTest {
     private RiskEvaluationService riskEvaluationService;
     @Mock
     private Strategy strategy;
+    @Mock
+    private OrderPersistenceService orderPersistenceService;
 
     private BotFacadeService botFacadeService;
     private IdempotentOrderCommandService idempotentOrderCommandService;
@@ -98,6 +101,7 @@ class IdempotencyIntegrationTest {
                 orderDecisionService,
                 riskEvaluationService,
                 idempotentOrderCommandService,
+                orderPersistenceService,
                 strategy
         );
 
@@ -119,6 +123,7 @@ class IdempotencyIntegrationTest {
                 .thenReturn(Optional.empty());
         when(exchangeTradingPort.placeOrder(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderPersistenceService.persist(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.findAll()).thenReturn(List.of());
     }
 
