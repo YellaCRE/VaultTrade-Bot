@@ -20,7 +20,12 @@ public class InMemoryOutboxRepository implements OutboxRepository {
         if (failOnSave.get()) {
             throw new IllegalStateException("forced outbox failure");
         }
-        messages.add(message);
+        synchronized (messages) {
+            boolean exists = messages.stream().anyMatch(current -> current.id().equals(message.id()));
+            if (!exists) {
+                messages.add(message);
+            }
+        }
     }
 
     @Override

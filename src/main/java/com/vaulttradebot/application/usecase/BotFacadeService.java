@@ -4,48 +4,51 @@ import com.vaulttradebot.application.port.in.BotConfigUseCase;
 import com.vaulttradebot.application.port.in.BotControlUseCase;
 import com.vaulttradebot.application.port.in.BotQueryUseCase;
 import com.vaulttradebot.application.port.in.RunTradingCycleUseCase;
+import com.vaulttradebot.application.outbox.OutboxMessage;
+import com.vaulttradebot.application.idempotency.IdempotencyHasher;
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
 import com.vaulttradebot.application.port.out.ClockPort;
-import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
+import com.vaulttradebot.application.port.out.OrderOutboxTransactionPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
+import com.vaulttradebot.application.port.out.OutboxRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
-import com.vaulttradebot.application.idempotency.IdempotencyConflictException;
-import com.vaulttradebot.application.idempotency.IdempotencyHasher;
-import com.vaulttradebot.application.idempotency.IdempotentOrderCommandService;
+import com.vaulttradebot.application.port.out.TradingCycleLockPort;
+import com.vaulttradebot.application.port.out.TradingCycleSnapshotRepository;
 import com.vaulttradebot.application.query.BotStatusSnapshot;
 import com.vaulttradebot.application.query.MetricsSnapshot;
 import com.vaulttradebot.application.query.PortfolioSnapshot;
+import com.vaulttradebot.domain.common.vo.Candle;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
+import com.vaulttradebot.domain.common.vo.Timeframe;
 import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import com.vaulttradebot.domain.ops.BotConfig;
 import com.vaulttradebot.domain.ops.BotRunState;
 import com.vaulttradebot.domain.portfolio.Position;
-import com.vaulttradebot.domain.risk.snapshot.RiskAccountSnapshot;
-import com.vaulttradebot.domain.risk.vo.RiskContext;
 import com.vaulttradebot.domain.risk.RiskDecision;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
-import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
-import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
 import com.vaulttradebot.domain.risk.RiskOrderRequest;
 import com.vaulttradebot.domain.risk.RiskPolicy;
-import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
+import com.vaulttradebot.domain.risk.snapshot.RiskAccountSnapshot;
+import com.vaulttradebot.domain.risk.snapshot.RiskMarketSnapshot;
+import com.vaulttradebot.domain.risk.snapshot.RiskMetricsSnapshot;
+import com.vaulttradebot.domain.risk.vo.RiskContext;
 import com.vaulttradebot.domain.trading.OrderActionDecision;
 import com.vaulttradebot.domain.trading.OrderCommand;
+import com.vaulttradebot.domain.trading.OrderDecisionService;
+import com.vaulttradebot.domain.trading.OrderMarketPolicy;
+import com.vaulttradebot.domain.trading.model.strategy.Strategy;
+import com.vaulttradebot.domain.trading.model.strategy.snapshot.StrategyPositionSnapshot;
+import com.vaulttradebot.domain.trading.model.strategy.vo.SignalDecision;
+import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyContext;
+import com.vaulttradebot.domain.trading.snapshot.OpenOrderSnapshot;
+import com.vaulttradebot.domain.trading.vo.OrderDecision;
 import com.vaulttradebot.domain.trading.vo.OrderDecisionContext;
 import com.vaulttradebot.domain.trading.vo.OrderDecisionType;
-import com.vaulttradebot.domain.trading.OrderMarketPolicy;
-import com.vaulttradebot.domain.trading.vo.OrderDecision;
-import com.vaulttradebot.domain.trading.OrderDecisionService;
-import com.vaulttradebot.domain.trading.model.strategy.vo.SignalDecision;
-import com.vaulttradebot.domain.trading.model.strategy.Strategy;
-import com.vaulttradebot.domain.trading.model.strategy.vo.StrategyContext;
-import com.vaulttradebot.domain.trading.model.strategy.snapshot.StrategyPositionSnapshot;
-import com.vaulttradebot.domain.common.vo.Timeframe;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -65,8 +68,6 @@ import org.springframework.stereotype.Service;
 public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, RunTradingCycleUseCase, BotQueryUseCase {
     private static final int CIRCUIT_BREAKER_THRESHOLD = 3;
     private static final String DEFAULT_ACCOUNT_ID = "default-account";
-    // Keep idempotency keys for a bounded retry window.
-    private static final Duration ORDER_IDEMPOTENCY_TTL = Duration.ofHours(1);
     private static final Set<OrderStatus> ACTIVE_ORDER_STATUSES = Set.of(
             OrderStatus.NEW,
             OrderStatus.OPEN,
@@ -76,15 +77,16 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
 
     private final BotSettingsRepository botSettingsRepository;
     private final MarketDataPort marketDataPort;
-    private final ExchangeTradingPort exchangeTradingPort;
     private final PortfolioRepository portfolioRepository;
     private final OrderRepository orderRepository;
     private final NotificationPort notificationPort;
     private final ClockPort clockPort;
     private final OrderDecisionService orderDecisionService;
     private final RiskEvaluationService riskEvaluationService;
-    private final IdempotentOrderCommandService idempotentOrderCommandService;
-    private final OrderPersistenceService orderPersistenceService;
+    private final OrderOutboxTransactionPort orderOutboxTransactionPort;
+    private final OutboxRepository outboxRepository;
+    private final TradingCycleSnapshotRepository tradingCycleSnapshotRepository;
+    private final TradingCycleLockPort tradingCycleLockPort;
     private final Strategy strategy;
 
     private final AtomicReference<BotRunState> state = new AtomicReference<>(BotRunState.STOPPED);
@@ -94,32 +96,35 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     private final AtomicLong successfulCycles = new AtomicLong(0);
     private final AtomicLong failedCycles = new AtomicLong(0);
+    private final AtomicLong lockSkippedCycles = new AtomicLong(0);
 
     public BotFacadeService(
             BotSettingsRepository botSettingsRepository,
             MarketDataPort marketDataPort,
-            ExchangeTradingPort exchangeTradingPort,
             PortfolioRepository portfolioRepository,
             OrderRepository orderRepository,
             NotificationPort notificationPort,
             ClockPort clockPort,
             OrderDecisionService orderDecisionService,
             RiskEvaluationService riskEvaluationService,
-            IdempotentOrderCommandService idempotentOrderCommandService,
-            OrderPersistenceService orderPersistenceService,
+            OrderOutboxTransactionPort orderOutboxTransactionPort,
+            OutboxRepository outboxRepository,
+            TradingCycleSnapshotRepository tradingCycleSnapshotRepository,
+            TradingCycleLockPort tradingCycleLockPort,
             Strategy strategy
     ) {
         this.botSettingsRepository = botSettingsRepository;
         this.marketDataPort = marketDataPort;
-        this.exchangeTradingPort = exchangeTradingPort;
         this.portfolioRepository = portfolioRepository;
         this.orderRepository = orderRepository;
         this.notificationPort = notificationPort;
         this.clockPort = clockPort;
         this.orderDecisionService = orderDecisionService;
         this.riskEvaluationService = riskEvaluationService;
-        this.idempotentOrderCommandService = idempotentOrderCommandService;
-        this.orderPersistenceService = orderPersistenceService;
+        this.orderOutboxTransactionPort = orderOutboxTransactionPort;
+        this.outboxRepository = outboxRepository;
+        this.tradingCycleSnapshotRepository = tradingCycleSnapshotRepository;
+        this.tradingCycleLockPort = tradingCycleLockPort;
         this.strategy = strategy;
     }
 
@@ -154,165 +159,35 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     }
 
     @Override
-    public synchronized CycleResult runCycle() {
-        Instant now = clockPort.now();
-        lastCycleAt.set(now);
+    public CycleResult runCycle() {
+        // Step 1) Mark cycle start time for latency and status tracking.
+        Instant cycleStart = clockPort.now();
+        lastCycleAt.set(cycleStart);
 
+        // Step 2) Skip early when bot is not in RUNNING state.
         if (state.get() != BotRunState.RUNNING) {
             successfulCycles.incrementAndGet();
             return new CycleResult(false, false, "bot is not running");
         }
 
-        String reservationId = null;
-        try {
-            BotConfig config = botSettingsRepository.load();
-            Market market = toMarket(config.marketSymbol());
-            Money lastPrice = marketDataPort.getLastPrice(market);
-            Optional<OpenOrderSnapshot> openOrder = findLatestOpenOrder(market);
-            Optional<Position> positionAtCycle = portfolioRepository.findByMarket(config.marketSymbol());
+        BotConfig config = botSettingsRepository.load();
+        Timeframe timeframe = Timeframe.M1;
+        String strategyId = strategy.getClass().getSimpleName();
+        String lockKey = config.marketSymbol() + "|" + strategyId;
 
-            SignalDecision signal = determineSignal(config, market, now);
-            boolean riskAllowed = true;
-            String riskReason = "RISK_SKIPPED";
-            BigDecimal approvedOrderKrw = config.maxOrderKrw();
-
-            Optional<OrderDecision> riskCandidate = orderDecisionService.decide(
-                    signal,
-                    market,
-                    lastPrice,
-                    config.maxOrderKrw()
-            );
-            if (riskCandidate.isPresent()) {
-                RiskContext riskContext = buildRiskContext(config, riskCandidate.get(), lastPrice, now);
-                RiskDecision riskDecision = riskEvaluationService.approveAndReserve(riskContext);
-                riskAllowed = riskDecision.isAllowed();
-                riskReason = riskDecision.reasonCode();
-                if (riskAllowed) {
-                    reservationId = riskDecision.reservationId();
-                    approvedOrderKrw = riskDecision.approvedOrderKrw();
-                }
-            }
-
-            OrderActionDecision actionDecision = orderDecisionService.decide(
-                    new OrderDecisionContext(
-                            signal,
-                            market,
-                            lastPrice,
-                            lastPrice,
-                            lastPrice,
-                            now,
-                            now,
-                            approvedOrderKrw,
-                            resolveMaxPositionQty(config, lastPrice),
-                            resolveAvailableQuoteKrw(config, lastPrice, positionAtCycle),
-                            positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
-                            resolveReservedQuoteKrw(openOrder),
-                            resolveReservedBaseQty(openOrder),
-                            positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
-                            new BigDecimal("0.0005"),
-                            new BigDecimal("0.0020"),
-                            openOrder.map(OpenOrderSnapshot::quantity).orElse(BigDecimal.ZERO),
-                            riskAllowed,
-                            riskReason,
-                            openOrder,
-                            market.value() + ":" + signal.signalAt(),
-                            buildOrderPolicy(config),
-                            lastOrderAt.get()
-                    )
-            );
-
-            if (actionDecision.type() == OrderDecisionType.HOLD) {
-                if (reservationId != null) {
-                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                    reservationId = null;
-                }
-                successfulCycles.incrementAndGet();
-                consecutiveFailures.set(0);
-                return new CycleResult(true, false, actionDecision.reason());
-            }
-
-            OrderCommand command = actionDecision.command().orElseThrow();
-            if (actionDecision.type() == OrderDecisionType.CANCEL) {
-                // Cancel is naturally idempotent at aggregate level.
-                cancelOrderById(command.targetOrderId());
-                if (reservationId != null) {
-                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                    reservationId = null;
-                }
-                successfulCycles.incrementAndGet();
-                consecutiveFailures.set(0);
-                return new CycleResult(true, false, "order canceled: " + command.reason());
-            }
-
-            String key = command.clientOrderId();
-            // Hash command payload to detect "same key, different request".
-            String requestHash = buildOrderCommandHash(command);
-            Optional<CycleResult> replayed = idempotentOrderCommandService.claimOrReplay(
-                    key,
-                    requestHash,
-                    now,
-                    ORDER_IDEMPOTENCY_TTL
-            );
-            if (replayed.isPresent()) {
-                if (reservationId != null) {
-                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                    reservationId = null;
-                }
-                successfulCycles.incrementAndGet();
-                consecutiveFailures.set(0);
-                // Replay the exact first response snapshot for strict idempotency.
-                return replayed.get();
-            }
-
-            try {
-                if (actionDecision.type() == OrderDecisionType.MODIFY) {
-                    cancelOrderById(command.targetOrderId());
-                }
-
-                Order order = Order.create(
-                        command.market(),
-                        command.side(),
-                        command.quantity(),
-                        command.price(),
-                        now
-                );
-                Order placed = exchangeTradingPort.placeOrder(order);
-                orderPersistenceService.persist(placed);
-                if (reservationId != null) {
-                    riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-                    reservationId = null;
-                }
-                lastOrderAt.set(now);
-
-                CycleResult result = new CycleResult(true, true, "order placed: " + actionDecision.reason());
-                idempotentOrderCommandService.complete(key, requestHash, result);
-                consecutiveFailures.set(0);
-                successfulCycles.incrementAndGet();
-                return result;
-            } catch (Exception placeError) {
-                // Release pending claim so client can retry after transient failures.
-                idempotentOrderCommandService.releaseClaim(key, requestHash);
-                throw placeError;
-            }
-        } catch (IdempotencyConflictException conflict) {
-            if (reservationId != null) {
-                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-            }
+        // Step 3) Acquire per-(pair,strategy) lock to prevent concurrent duplicate cycles.
+        if (!tradingCycleLockPort.tryAcquire(lockKey)) {
+            lockSkippedCycles.incrementAndGet();
             successfulCycles.incrementAndGet();
-            consecutiveFailures.set(0);
-            return new CycleResult(true, false, "idempotency conflict: " + conflict.getMessage());
-        } catch (Exception e) {
-            if (reservationId != null) {
-                riskEvaluationService.releaseReservation(DEFAULT_ACCOUNT_ID, reservationId);
-            }
-            int failures = consecutiveFailures.incrementAndGet();
-            failedCycles.incrementAndGet();
-            lastError.set(e.getMessage());
-            if (failures >= CIRCUIT_BREAKER_THRESHOLD) {
-                state.set(BotRunState.CIRCUIT_OPEN);
-                notificationPort.notify("Circuit breaker opened: " + e.getMessage());
-            }
-            return new CycleResult(true, false, "cycle failed: " + e.getMessage());
+            return new CycleResult(false, false, "cycle skipped: lock not acquired");
+        }
+
+        try {
+            // Step 4) Run the locked orchestration flow with fixed boundaries.
+            return runLockedCycle(config, timeframe, strategyId, cycleStart);
+        } finally {
+            // Step 5) Always release lock even if the cycle fails.
+            tradingCycleLockPort.release(lockKey);
         }
     }
 
@@ -382,6 +257,352 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         );
     }
 
+    private CycleResult runLockedCycle(
+            BotConfig config,
+            Timeframe timeframe,
+            String strategyId,
+            Instant cycleStart
+    ) {
+        Market market = toMarket(config.marketSymbol());
+        List<Candle> candles;
+        try {
+            // Load market data window once so all downstream decisions use the same snapshot base.
+            candles = marketDataPort.getRecentCandles(market, timeframe, 150, cycleStart);
+        } catch (Exception marketError) {
+            successfulCycles.incrementAndGet();
+            consecutiveFailures.set(0);
+            return new CycleResult(false, false, "cycle skipped: market data unavailable");
+        }
+
+        // Pin cycle to the latest closed candle timestamp for deterministic replay.
+        Instant dataTimestamp = resolveDataTimestamp(candles, timeframe, cycleStart);
+        if (dataTimestamp == null) {
+            successfulCycles.incrementAndGet();
+            consecutiveFailures.set(0);
+            return new CycleResult(false, false, "cycle skipped: no closed candle");
+        }
+
+        // Use deterministic cycle id to guarantee idempotent re-entry behavior.
+        String cycleId = buildCycleId(strategyId, market, timeframe, dataTimestamp);
+        Optional<TradingCycleSnapshot> existingCycle = tradingCycleSnapshotRepository.findByCycleId(cycleId);
+        if (existingCycle.isPresent()) {
+            successfulCycles.incrementAndGet();
+            consecutiveFailures.set(0);
+            return existingCycle.get().toCycleResult();
+        }
+
+        try {
+            return executeCycleDecision(config, market, timeframe, candles, dataTimestamp, strategyId, cycleId, cycleStart);
+        } catch (Exception e) {
+            int failures = consecutiveFailures.incrementAndGet();
+            failedCycles.incrementAndGet();
+            lastError.set(e.getMessage());
+            if (failures >= CIRCUIT_BREAKER_THRESHOLD) {
+                state.set(BotRunState.CIRCUIT_OPEN);
+                notificationPort.notify("Circuit breaker opened: " + e.getMessage());
+            }
+            return new CycleResult(true, false, "cycle failed: " + e.getMessage());
+        }
+    }
+
+    private CycleResult executeCycleDecision(
+            BotConfig config,
+            Market market,
+            Timeframe timeframe,
+            List<Candle> candles,
+            Instant dataTimestamp,
+            String strategyId,
+            String cycleId,
+            Instant cycleStart
+    ) {
+        // Build immutable input snapshot used by strategy/risk/decision layers.
+        Money lastPrice = marketDataPort.getLastPrice(market);
+        Optional<OpenOrderSnapshot> openOrder = findLatestOpenOrder(market);
+        Optional<Position> positionAtCycle = portfolioRepository.findByMarket(config.marketSymbol());
+
+        SignalDecision signal;
+        try {
+            // Evaluate strategy with fixed evaluation timestamp to avoid repaint issues.
+            signal = determineSignal(config, dataTimestamp, candles, timeframe);
+        } catch (Exception strategyError) {
+            return holdWithSnapshot(
+                    cycleId,
+                    strategyId,
+                    timeframe,
+                    dataTimestamp,
+                    lastPrice,
+                    config,
+                    positionAtCycle,
+                    "HOLD",
+                    "strategy evaluation failed",
+                    "STRATEGY_ERROR: " + safeError(strategyError),
+                    cycleStart
+            );
+        }
+
+        boolean riskAllowed = true;
+        String riskReason = "RISK_SKIPPED";
+        BigDecimal approvedOrderKrw = config.maxOrderKrw();
+
+        try {
+            // Evaluate risk before building final order action decision.
+            Optional<OrderDecision> riskCandidate = orderDecisionService.decide(
+                    signal,
+                    market,
+                    lastPrice,
+                    config.maxOrderKrw()
+            );
+            if (riskCandidate.isPresent()) {
+                RiskContext riskContext = buildRiskContext(config, riskCandidate.get(), lastPrice, dataTimestamp);
+                RiskDecision riskDecision = riskEvaluationService.approveAndReserve(riskContext);
+                riskAllowed = riskDecision.isAllowed();
+                riskReason = riskDecision.reasonCode();
+                if (riskAllowed) {
+                    approvedOrderKrw = riskDecision.approvedOrderKrw();
+                }
+            }
+        } catch (Exception riskError) {
+            return holdWithSnapshot(
+                    cycleId,
+                    strategyId,
+                    timeframe,
+                    dataTimestamp,
+                    lastPrice,
+                    config,
+                    positionAtCycle,
+                    signal.action().name(),
+                    signal.reason(),
+                    "RISK_ERROR: " + safeError(riskError),
+                    cycleStart
+            );
+        }
+
+        OrderActionDecision actionDecision = orderDecisionService.decide(
+                new OrderDecisionContext(
+                        signal,
+                        market,
+                        lastPrice,
+                        lastPrice,
+                        lastPrice,
+                        dataTimestamp,
+                        cycleStart,
+                        approvedOrderKrw,
+                        resolveMaxPositionQty(config, lastPrice),
+                        resolveAvailableQuoteKrw(config, lastPrice, positionAtCycle),
+                        positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
+                        resolveReservedQuoteKrw(openOrder),
+                        resolveReservedBaseQty(openOrder),
+                        positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
+                        new BigDecimal("0.0005"),
+                        new BigDecimal("0.0020"),
+                        openOrder.map(OpenOrderSnapshot::quantity).orElse(BigDecimal.ZERO),
+                        riskAllowed,
+                        riskReason,
+                        openOrder,
+                        cycleId,
+                        buildOrderPolicy(config),
+                        lastOrderAt.get()
+                )
+        );
+
+        String outboxEventId = null;
+        OutboxMessage outboxMessage = null;
+        if (actionDecision.type() != OrderDecisionType.HOLD) {
+            OrderCommand command = actionDecision.command().orElseThrow();
+            // Convert execution intent into durable outbox event for async adapter processing.
+            outboxEventId = buildOutboxEventId(cycleId, actionDecision.type().name());
+            outboxMessage = buildOrderCommandRequestedEvent(
+                    outboxEventId,
+                    cycleId,
+                    strategyId,
+                    dataTimestamp,
+                    actionDecision,
+                    command,
+                    cycleStart
+            );
+            lastOrderAt.set(cycleStart);
+        }
+
+        TradingCycleSnapshot snapshot = buildSnapshot(
+                cycleId,
+                strategyId,
+                timeframe,
+                dataTimestamp,
+                lastPrice,
+                config,
+                positionAtCycle,
+                signal.action().name(),
+                signal.reason(),
+                riskAllowed,
+                riskReason,
+                actionDecision,
+                outboxEventId,
+                null,
+                cycleStart
+        );
+
+        // Persist cycle snapshot and outbox atomically to keep decision and command request consistent.
+        persistCycle(snapshot, outboxMessage);
+        successfulCycles.incrementAndGet();
+        consecutiveFailures.set(0);
+
+        boolean orderRequested = actionDecision.type() != OrderDecisionType.HOLD;
+        String message = orderRequested
+                ? "order command requested: " + actionDecision.reason()
+                : actionDecision.reason();
+        return new CycleResult(true, orderRequested, message);
+    }
+
+    private CycleResult holdWithSnapshot(
+            String cycleId,
+            String strategyId,
+            Timeframe timeframe,
+            Instant dataTimestamp,
+            Money lastPrice,
+            BotConfig config,
+            Optional<Position> positionAtCycle,
+            String signalAction,
+            String signalReason,
+            String holdReason,
+            Instant cycleStart
+    ) {
+        OrderActionDecision hold = OrderActionDecision.hold(holdReason);
+        TradingCycleSnapshot snapshot = buildSnapshot(
+                cycleId,
+                strategyId,
+                timeframe,
+                dataTimestamp,
+                lastPrice,
+                config,
+                positionAtCycle,
+                signalAction,
+                signalReason,
+                false,
+                "EVALUATION_ERROR",
+                hold,
+                null,
+                holdReason,
+                cycleStart
+        );
+        persistCycle(snapshot, null);
+        successfulCycles.incrementAndGet();
+        consecutiveFailures.set(0);
+        return new CycleResult(true, false, holdReason);
+    }
+
+    private void persistCycle(TradingCycleSnapshot snapshot, OutboxMessage outboxMessage) {
+        orderOutboxTransactionPort.execute(() -> {
+            tradingCycleSnapshotRepository.save(snapshot);
+            if (outboxMessage != null) {
+                // Store execution request in outbox instead of calling exchange synchronously.
+                outboxRepository.save(outboxMessage);
+            }
+        });
+    }
+
+    private TradingCycleSnapshot buildSnapshot(
+            String cycleId,
+            String strategyId,
+            Timeframe timeframe,
+            Instant dataTimestamp,
+            Money lastPrice,
+            BotConfig config,
+            Optional<Position> positionAtCycle,
+            String signalAction,
+            String signalReason,
+            boolean riskAllowed,
+            String riskReason,
+            OrderActionDecision actionDecision,
+            String outboxEventId,
+            String errorReason,
+            Instant cycleStart
+    ) {
+        long latencyMs = Duration.between(cycleStart, clockPort.now()).toMillis();
+        Optional<OrderCommand> command = actionDecision.command();
+        return new TradingCycleSnapshot(
+                cycleId,
+                strategyId,
+                config.marketSymbol(),
+                timeframe.name(),
+                dataTimestamp,
+                lastPrice.amount(),
+                resolveAvailableQuoteKrw(config, lastPrice, positionAtCycle),
+                positionAtCycle.map(Position::quantity).orElse(BigDecimal.ZERO),
+                signalAction,
+                signalReason,
+                riskAllowed,
+                riskReason,
+                actionDecision.type(),
+                actionDecision.reason(),
+                command.map(value -> value.type().name()).orElse(null),
+                command.map(value -> value.clientOrderId() == null ? value.targetOrderId() : value.clientOrderId()).orElse(null),
+                outboxEventId,
+                latencyMs,
+                errorReason,
+                clockPort.now()
+        );
+    }
+
+    private OutboxMessage buildOrderCommandRequestedEvent(
+            String eventId,
+            String cycleId,
+            String strategyId,
+            Instant dataTimestamp,
+            OrderActionDecision actionDecision,
+            OrderCommand command,
+            Instant now
+    ) {
+        String payload = "{"
+                + "\"cycleId\":\"" + escape(cycleId) + "\","
+                + "\"strategyId\":\"" + escape(strategyId) + "\","
+                + "\"dataTimestamp\":\"" + dataTimestamp + "\","
+                + "\"decision\":\"" + actionDecision.type().name() + "\","
+                + "\"reason\":\"" + escape(actionDecision.reason()) + "\","
+                + "\"commandType\":\"" + command.type().name() + "\","
+                + "\"targetOrderId\":\"" + escape(valueOrEmpty(command.targetOrderId())) + "\","
+                + "\"market\":\"" + escape(command.market() == null ? "" : command.market().value()) + "\","
+                + "\"side\":\"" + escape(command.side() == null ? "" : command.side().name()) + "\","
+                + "\"orderType\":\"" + escape(command.orderType() == null ? "" : command.orderType().name()) + "\","
+                + "\"price\":\"" + escape(command.price() == null ? "" : command.price().amount().toPlainString()) + "\","
+                + "\"quantity\":\"" + escape(command.quantity() == null ? "" : command.quantity().toPlainString()) + "\","
+                + "\"clientOrderId\":\"" + escape(valueOrEmpty(command.clientOrderId())) + "\""
+                + "}";
+
+        return new OutboxMessage(
+                eventId,
+                "TradingCycle",
+                cycleId,
+                "OrderCommandRequested",
+                payload,
+                1,
+                dataTimestamp,
+                now,
+                null,
+                0,
+                null,
+                now,
+                null
+        );
+    }
+
+    private String buildCycleId(String strategyId, Market market, Timeframe timeframe, Instant dataTimestamp) {
+        String raw = strategyId + "|" + market.value() + "|" + timeframe.name() + "|" + dataTimestamp;
+        return IdempotencyHasher.sha256(raw);
+    }
+
+    private String buildOutboxEventId(String cycleId, String action) {
+        String raw = cycleId + ":" + action;
+        return IdempotencyHasher.sha256(raw);
+    }
+
+    private Instant resolveDataTimestamp(List<Candle> candles, Timeframe timeframe, Instant now) {
+        return candles.stream()
+                .map(candle -> candle.openTime().plus(timeframe.duration()))
+                .filter(closeTime -> !closeTime.isAfter(now))
+                .max(Instant::compareTo)
+                .orElse(null);
+    }
+
     private RiskContext buildRiskContext(BotConfig config, OrderDecision decision, Money lastPrice, Instant now) {
         Optional<Position> positionOpt = portfolioRepository.findByMarket(config.marketSymbol());
         BigDecimal currentExposure = positionOpt
@@ -443,44 +664,42 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         );
     }
 
-    private SignalDecision determineSignal(BotConfig config, Market market, Instant now) {
-        Timeframe timeframe = Timeframe.M1;
+    private SignalDecision determineSignal(
+            BotConfig config,
+            Instant evaluationTime,
+            List<Candle> candles,
+            Timeframe timeframe
+    ) {
         Optional<StrategyPositionSnapshot> positionSnapshot = portfolioRepository.findByMarket(config.marketSymbol())
                 .map(position -> new StrategyPositionSnapshot(
                         position.quantity().signum() >= 0 ? Side.BUY : Side.SELL,
                         position.quantity()
                 ));
-        // Strategy is pure: all required inputs are assembled here and injected once.
+        // Fix strategy input time to closed-candle timestamp for deterministic replay.
         StrategyContext context = new StrategyContext(
                 config.marketSymbol(),
-                marketDataPort.getRecentCandles(market, timeframe, 150, now),
+                candles,
                 timeframe,
-                now,
+                evaluationTime,
                 positionSnapshot
         );
         return strategy.evaluate(context);
-    }
-
-    private String buildOrderCommandHash(OrderCommand command) {
-        // Build canonical payload string before hashing.
-        String payload = String.join("|",
-                command.type().name(),
-                valueOrEmpty(command.targetOrderId()),
-                command.market() == null ? "" : command.market().value(),
-                command.side() == null ? "" : command.side().name(),
-                command.orderType() == null ? "" : command.orderType().name(),
-                command.price() == null ? "" : canonical(command.price().amount()),
-                command.quantity() == null ? "" : canonical(command.quantity())
-        );
-        return IdempotencyHasher.sha256(payload);
     }
 
     private String valueOrEmpty(String value) {
         return value == null ? "" : value;
     }
 
-    private String canonical(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString();
+    private String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String safeError(Exception error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) {
+            return error.getClass().getSimpleName();
+        }
+        return message;
     }
 
     private Market toMarket(String symbol) {
@@ -555,24 +774,15 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 ));
     }
 
-    private void cancelOrderById(String orderId) {
-        exchangeTradingPort.cancelOrder(orderId);
-        orderRepository.findAll().stream()
-                .filter(order -> order.id().equals(orderId))
-                .findFirst()
-                .ifPresent(order -> {
-                    if (order.canCancel()) {
-                        order.cancel();
-                        orderRepository.save(order);
-                    }
-                });
-    }
-
     private BotStatusSnapshot snapshot() {
+        String error = lastError.get();
+        if (lockSkippedCycles.get() > 0 && (error == null || error.isBlank())) {
+            error = "lock-skipped=" + lockSkippedCycles.get();
+        }
         return new BotStatusSnapshot(
                 state.get(),
                 lastCycleAt.get(),
-                lastError.get(),
+                error,
                 consecutiveFailures.get()
         );
     }
