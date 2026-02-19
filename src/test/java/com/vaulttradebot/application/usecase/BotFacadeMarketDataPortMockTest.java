@@ -61,6 +61,10 @@ import org.mockito.quality.Strictness;
 class BotFacadeMarketDataPortMockTest {
     private static final Instant NOW = Instant.parse("2026-02-15T10:00:00Z");
     private static final Market MARKET = Market.of("KRW-BTC");
+    private static final String DEFAULT_OPEN = "49900000";
+    private static final String DEFAULT_HIGH = "50100000";
+    private static final String DEFAULT_LOW = "49800000";
+    private static final String DEFAULT_CLOSE = "50000000";
 
     @Mock
     private BotSettingsRepository botSettingsRepository;
@@ -120,7 +124,7 @@ class BotFacadeMarketDataPortMockTest {
     void usesSingleMarketSnapshotPerCycleAndRequestsOrderOnFreshData() {
         // Fresh market data should produce one deterministic decision and one market snapshot call.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(
-                List.of(candleAt(NOW.minusSeconds(61), "49900000", "50100000", "49800000", "50000000"))
+                List.of(candleAt(NOW.minusSeconds(61)))
         );
         when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
 
@@ -138,7 +142,7 @@ class BotFacadeMarketDataPortMockTest {
     void rejectsStaleMarketDataAndKeepsDecisionAsHold() {
         // A stale candle timestamp should force HOLD and skip outbox command creation.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(
-                List.of(candleAt(NOW.minusSeconds(120), "49900000", "50100000", "49800000", "50000000"))
+                List.of(candleAt(NOW.minusSeconds(120)))
         );
         when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
 
@@ -161,7 +165,7 @@ class BotFacadeMarketDataPortMockTest {
     void skipsCycleWhenNoClosedCandleExistsAtTimeBoundary() {
         // This candle closes after NOW, so it must not be used for decision timestamp.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(
-                List.of(candleAt(NOW.minusSeconds(30), "49900000", "50100000", "49800000", "50000000"))
+                List.of(candleAt(NOW.minusSeconds(30)))
         );
 
         BotFacadeService service = newService(orderDecisionService, tradingCycleLockPort);
@@ -202,8 +206,11 @@ class BotFacadeMarketDataPortMockTest {
 
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenAnswer(invocation -> {
             entered.countDown();
-            release.await(2, TimeUnit.SECONDS);
-            return List.of(candleAt(NOW.minusSeconds(61), "49900000", "50100000", "49800000", "50000000"));
+            boolean released = release.await(2, TimeUnit.SECONDS);
+            if (!released) {
+                throw new IllegalStateException("test did not release market data latch in time");
+            }
+            return List.of(candleAt(NOW.minusSeconds(61)));
         });
         when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
 
@@ -212,30 +219,33 @@ class BotFacadeMarketDataPortMockTest {
 
         int requestCount = 8;
         CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
-        List<Future<CycleResult>> futures = new ArrayList<>();
-        for (int i = 0; i < requestCount; i++) {
-            futures.add(executor.submit(() -> {
-                start.await(2, TimeUnit.SECONDS);
-                return service.runCycle();
-            }));
-        }
-
-        start.countDown();
-        assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
-        release.countDown();
-
-        int lockSkipped = 0;
-        for (Future<CycleResult> future : futures) {
-            CycleResult result = future.get(3, TimeUnit.SECONDS);
-            if ("cycle skipped: lock not acquired".equals(result.message())) {
-                lockSkipped++;
+        try (ExecutorService executor = Executors.newFixedThreadPool(requestCount)) {
+            List<Future<CycleResult>> futures = new ArrayList<>();
+            for (int i = 0; i < requestCount; i++) {
+                futures.add(executor.submit(() -> {
+                    boolean started = start.await(2, TimeUnit.SECONDS);
+                    if (!started) {
+                        throw new IllegalStateException("workers did not receive start signal in time");
+                    }
+                    return service.runCycle();
+                }));
             }
-        }
-        executor.shutdownNow();
 
-        assertThat(lockSkipped).isGreaterThanOrEqualTo(1);
-        verify(marketDataPort, times(1)).getRecentCandles(eq(MARKET), eq(Timeframe.M1), eq(150), eq(NOW));
+            start.countDown();
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+            release.countDown();
+
+            int lockSkipped = 0;
+            for (Future<CycleResult> future : futures) {
+                CycleResult result = future.get(3, TimeUnit.SECONDS);
+                if ("cycle skipped: lock not acquired".equals(result.message())) {
+                    lockSkipped++;
+                }
+            }
+
+            assertThat(lockSkipped).isGreaterThanOrEqualTo(1);
+            verify(marketDataPort, times(1)).getRecentCandles(eq(MARKET), eq(Timeframe.M1), eq(150), eq(NOW));
+        }
     }
 
     private BotFacadeService newService(OrderDecisionService realOrderDecisionService, TradingCycleLockPort lockPort) {
@@ -256,13 +266,13 @@ class BotFacadeMarketDataPortMockTest {
         );
     }
 
-    private Candle candleAt(Instant openTime, String open, String high, String low, String close) {
+    private Candle candleAt(Instant openTime) {
         return new Candle(
                 openTime,
-                Price.of(new BigDecimal(open), Asset.krw()),
-                Price.of(new BigDecimal(high), Asset.krw()),
-                Price.of(new BigDecimal(low), Asset.krw()),
-                Price.of(new BigDecimal(close), Asset.krw()),
+                Price.of(new BigDecimal(DEFAULT_OPEN), Asset.krw()),
+                Price.of(new BigDecimal(DEFAULT_HIGH), Asset.krw()),
+                Price.of(new BigDecimal(DEFAULT_LOW), Asset.krw()),
+                Price.of(new BigDecimal(DEFAULT_CLOSE), Asset.krw()),
                 BigDecimal.ONE
         );
     }
