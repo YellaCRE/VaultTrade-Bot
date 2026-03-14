@@ -1,4 +1,9 @@
 vault:
+  circuit-breaker:
+    enabled: true
+    failure-threshold: 3
+    open-duration-ms: 30000
+    half-open-max-calls: 1
   persistence:
     mode: jdbc
   scheduler:
