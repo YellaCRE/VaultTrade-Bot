@@ -14,10 +14,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /** In-memory deterministic market data source for local runs/tests. */
 @Component
+@ConditionalOnProperty(name = "vault.market-data.provider", havingValue = "static")
 public class StaticMarketDataAdapter implements MarketDataPort {
     private static final Asset KRW = Asset.krw();
 

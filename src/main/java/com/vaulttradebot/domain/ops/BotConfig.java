@@ -1,5 +1,6 @@
 package com.vaulttradebot.domain.ops;
 
+import com.vaulttradebot.domain.common.vo.Market;
 import java.math.BigDecimal;
 
 public record BotConfig(
@@ -15,6 +16,10 @@ public record BotConfig(
     public BotConfig {
         if (marketSymbol == null || marketSymbol.isBlank()) {
             throw new IllegalArgumentException("marketSymbol must not be blank");
+        }
+        Market market = Market.of(marketSymbol);
+        if (!market.quote().isKrw()) {
+            throw new IllegalArgumentException("marketSymbol quote currency must be KRW");
         }
         if (initialCashKrw == null || maxOrderKrw == null || maxExposureRatio == null
                 || maxDailyLossRatio == null || buyThresholdPrice == null) {
