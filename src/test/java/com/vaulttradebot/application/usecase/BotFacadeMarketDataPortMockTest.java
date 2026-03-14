@@ -180,6 +180,31 @@ class BotFacadeMarketDataPortMockTest {
     }
 
     @Test
+    void holdsWhenClosedCandlesContainMaterialGap() {
+        when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(List.of(
+                candleAt(NOW.minusSeconds(301)),
+                candleAt(NOW.minusSeconds(61))
+        ));
+        when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
+
+        BotFacadeService service = newService(orderDecisionService, tradingCycleLockPort);
+        service.start();
+        CycleResult result = service.runCycle();
+
+        ArgumentCaptor<TradingCycleSnapshot> snapshotCaptor = ArgumentCaptor.forClass(TradingCycleSnapshot.class);
+        verify(tradingCycleSnapshotRepository, times(1)).save(snapshotCaptor.capture());
+        TradingCycleSnapshot snapshot = snapshotCaptor.getValue();
+
+        assertThat(result.executed()).isTrue();
+        assertThat(result.orderPlaced()).isFalse();
+        assertThat(result.message()).isEqualTo("market data has material gaps");
+        assertThat(snapshot.decisionType()).isEqualTo(OrderDecisionType.HOLD);
+        assertThat(snapshot.decisionReason()).isEqualTo("market data has material gaps");
+        verify(strategy, never()).evaluate(any());
+        verify(outboxRepository, never()).save(any());
+    }
+
+    @Test
     void propagatesMarketDataFailureAsSafeSkipWithoutDownstreamCalls() {
         // Market data fetch errors must be contained as a safe cycle skip.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any()))

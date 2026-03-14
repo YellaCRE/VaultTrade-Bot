@@ -275,15 +275,16 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         }
 
         // Pin cycle to the latest closed candle timestamp for deterministic replay.
-        Instant dataTimestamp = resolveDataTimestamp(candles, timeframe, cycleStart);
-        if (dataTimestamp == null) {
+        Optional<Instant> dataTimestamp = resolveDataTimestamp(candles, timeframe, cycleStart);
+        if (dataTimestamp.isEmpty()) {
             successfulCycles.incrementAndGet();
             consecutiveFailures.set(0);
             return new CycleResult(false, false, "cycle skipped: no closed candle");
         }
+        Instant resolvedDataTimestamp = dataTimestamp.get();
 
         // Use deterministic cycle id to guarantee idempotent re-entry behavior.
-        String cycleId = buildCycleId(strategyId, market, timeframe, dataTimestamp);
+        String cycleId = buildCycleId(strategyId, market, timeframe, resolvedDataTimestamp);
         Optional<TradingCycleSnapshot> existingCycle = tradingCycleSnapshotRepository.findByCycleId(cycleId);
         if (existingCycle.isPresent()) {
             successfulCycles.incrementAndGet();
@@ -291,8 +292,35 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
             return existingCycle.get().toCycleResult();
         }
 
+        if (hasMaterialCandleGap(candles, timeframe, resolvedDataTimestamp)) {
+            Money lastPrice = marketDataPort.getLastPrice(market);
+            Optional<Position> positionAtCycle = portfolioRepository.findByMarket(config.marketSymbol());
+            return holdWithSnapshot(
+                    cycleId,
+                    strategyId,
+                    timeframe,
+                    resolvedDataTimestamp,
+                    lastPrice,
+                    config,
+                    positionAtCycle,
+                    "HOLD",
+                    "MARKET_DATA_GAP",
+                    "market data has material gaps",
+                    cycleStart
+            );
+        }
+
         try {
-            return executeCycleDecision(config, market, timeframe, candles, dataTimestamp, strategyId, cycleId, cycleStart);
+            return executeCycleDecision(
+                    config,
+                    market,
+                    timeframe,
+                    candles,
+                    resolvedDataTimestamp,
+                    strategyId,
+                    cycleId,
+                    cycleStart
+            );
         } catch (Exception e) {
             int failures = consecutiveFailures.incrementAndGet();
             failedCycles.incrementAndGet();
@@ -595,12 +623,31 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         return IdempotencyHasher.sha256(raw);
     }
 
-    private Instant resolveDataTimestamp(List<Candle> candles, Timeframe timeframe, Instant now) {
+    private Optional<Instant> resolveDataTimestamp(List<Candle> candles, Timeframe timeframe, Instant now) {
         return candles.stream()
                 .map(candle -> candle.openTime().plus(timeframe.duration()))
                 .filter(closeTime -> !closeTime.isAfter(now))
-                .max(Instant::compareTo)
-                .orElse(null);
+                .max(Instant::compareTo);
+    }
+
+    private boolean hasMaterialCandleGap(List<Candle> candles, Timeframe timeframe, Instant dataTimestamp) {
+        List<Instant> closedOpenTimes = candles.stream()
+                .map(Candle::openTime)
+                .filter(instant -> !instant.plus(timeframe.duration()).isAfter(dataTimestamp))
+                .sorted()
+                .toList();
+        if (closedOpenTimes.size() < 2) {
+            return false;
+        }
+
+        Duration allowedGap = timeframe.duration().multipliedBy(2);
+        for (int i = 1; i < closedOpenTimes.size(); i++) {
+            Duration gap = Duration.between(closedOpenTimes.get(i - 1), closedOpenTimes.get(i));
+            if (gap.compareTo(allowedGap) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private RiskContext buildRiskContext(BotConfig config, OrderDecision decision, Money lastPrice, Instant now) {
