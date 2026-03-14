@@ -1,19 +1,20 @@
 package com.vaulttradebot.adapter.out;
 
-import com.vaulttradebot.application.port.in.RunTradingCycleUseCase;
+import com.vaulttradebot.application.usecase.TradingCycleSchedulerService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SpringSchedulerAdapter {
-    private final RunTradingCycleUseCase runTradingCycleUseCase;
+    private final TradingCycleSchedulerService tradingCycleSchedulerService;
 
-    public SpringSchedulerAdapter(RunTradingCycleUseCase runTradingCycleUseCase) {
-        this.runTradingCycleUseCase = runTradingCycleUseCase;
+    public SpringSchedulerAdapter(TradingCycleSchedulerService tradingCycleSchedulerService) {
+        this.tradingCycleSchedulerService = tradingCycleSchedulerService;
     }
 
-    @Scheduled(fixedDelayString = "${bot.cycle-delay-ms:5000}")
+    @Scheduled(fixedDelayString = "${vault.scheduler.poll-delay-ms:1000}")
     public void run() {
-        runTradingCycleUseCase.runCycle();
+        // Keep the framework adapter thin and delegate policy inward.
+        tradingCycleSchedulerService.poll();
     }
 }

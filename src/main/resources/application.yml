@@ -1,6 +1,16 @@
 vault:
   persistence:
     mode: jdbc
+  scheduler:
+    enabled: true
+    cron: "*/5 * * * * *"
+    zone: Asia/Seoul
+    poll-delay-ms: 1000
+    misfire-threshold-ms: 15000
+    misfire-policy: FIRE_ONCE_NOW
+    max-retry-attempts: 3
+    retry-base-delay-ms: 2000
+    retry-max-delay-ms: 30000
   outbox:
     relay-delay-ms: 1000
     batch-size: 100
