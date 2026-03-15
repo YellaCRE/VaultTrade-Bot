@@ -3,11 +3,8 @@ package com.vaulttradebot.adapter.out.upbit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.config.VaultCircuitBreakerProperties;
-import com.vaulttradebot.config.VaultMarketDataProperties;
-import com.vaulttradebot.config.VaultTradingProperties;
 import com.vaulttradebot.domain.resilience.CircuitBreakerOpenException;
 import com.vaulttradebot.domain.resilience.InMemoryCircuitBreaker;
 import java.nio.charset.StandardCharsets;
@@ -21,22 +18,10 @@ import org.springframework.web.client.ResourceAccessException;
 
 class UpbitCircuitBreakerIntegrationTest {
     @Test
-    void quotationClientOpensBreakerAfterRetryableFailures() {
+    void retryableInfrastructureFailuresOpenBreaker() {
         // Verifies that infrastructure failures are eligible to open the breaker.
         AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-03-15T00:00:00Z"));
         InMemoryCircuitBreaker circuitBreaker = new InMemoryCircuitBreaker(clock(now), breakerProperties(true, 1, 30_000L, 1));
-        UpbitQuotationClient client = new UpbitQuotationClient(
-                org.springframework.web.client.RestClient.builder(),
-                marketDataProperties(),
-                circuitBreaker,
-                breakerProperties(true, 1, 30_000L, 1)
-        ) {
-            @Override
-            public com.vaulttradebot.adapter.out.upbit.dto.UpbitTickerResponse getTicker(String market) {
-                return super.getTicker(market);
-            }
-        };
-
         UpbitRetryExecutor retryExecutor = new UpbitRetryExecutor("upbit-quotation", 0, 1, 1, 1, millis -> { }, () -> 1.0d);
 
         assertThatThrownBy(() -> circuitBreaker.execute("upbit-quotation", () -> {
@@ -69,7 +54,7 @@ class UpbitCircuitBreakerIntegrationTest {
     }
 
     @Test
-    void tradingClientUsesRetryableStatusesForBreakerEligibility() {
+    void retryClassifierUsesRetryableStatusesForBreakerEligibility() {
         // Verifies the shared retry classifier that decides whether a failure should trip the breaker.
         UpbitRetryExecutor retryExecutor = new UpbitRetryExecutor("upbit-trading", 0, 1, 1, 1, millis -> { }, () -> 1.0d);
 
@@ -99,21 +84,6 @@ class UpbitCircuitBreakerIntegrationTest {
         properties.setFailureThreshold(threshold);
         properties.setOpenDurationMs(openDurationMs);
         properties.setHalfOpenMaxCalls(halfOpenMaxCalls);
-        return properties;
-    }
-
-    private VaultMarketDataProperties marketDataProperties() {
-        VaultMarketDataProperties properties = new VaultMarketDataProperties();
-        properties.getUpbit().getRetry().setMaxAttempts(0);
-        return properties;
-    }
-
-    @SuppressWarnings("unused")
-    private VaultTradingProperties tradingProperties() {
-        VaultTradingProperties properties = new VaultTradingProperties();
-        properties.getUpbit().setAccessKey("access");
-        properties.getUpbit().setSecretKey("secret");
-        properties.getUpbit().getRetry().setMaxAttempts(0);
         return properties;
     }
 }
