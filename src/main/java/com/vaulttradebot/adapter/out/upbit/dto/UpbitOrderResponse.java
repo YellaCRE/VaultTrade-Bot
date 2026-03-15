@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record UpbitOrderResponse(
         String uuid,
+        String identifier,
         String state,
         String side,
         String market,

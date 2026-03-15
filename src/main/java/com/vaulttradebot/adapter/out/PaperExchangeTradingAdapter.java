@@ -6,9 +6,11 @@ import com.vaulttradebot.domain.execution.vo.ExecutionTrade;
 import com.vaulttradebot.domain.execution.Order;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "vault.trading.provider", havingValue = "paper", matchIfMissing = true)
 public class PaperExchangeTradingAdapter implements ExchangeTradingPort {
     @Override
     public Order placeOrder(Order order) {

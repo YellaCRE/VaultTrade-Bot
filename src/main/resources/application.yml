@@ -1,4 +1,10 @@
 vault:
+  trading:
+    provider: paper
+    upbit:
+      base-url: https://api.upbit.com
+      access-key: ${UPBIT_ACCESS_KEY:}
+      secret-key: ${UPBIT_SECRET_KEY:}
   market-data:
     provider: upbit
     upbit:
