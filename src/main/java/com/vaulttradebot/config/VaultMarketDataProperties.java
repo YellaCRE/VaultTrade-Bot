@@ -29,6 +29,7 @@ public class VaultMarketDataProperties {
     public static class Upbit {
         @NotBlank
         private String baseUrl = "https://api.upbit.com";
+        private final Retry retry = new Retry();
 
         public String getBaseUrl() {
             return baseUrl;
@@ -36,6 +37,49 @@ public class VaultMarketDataProperties {
 
         public void setBaseUrl(String baseUrl) {
             this.baseUrl = baseUrl;
+        }
+
+        public Retry getRetry() {
+            return retry;
+        }
+    }
+
+    public static class Retry {
+        private int maxAttempts = 4;
+        private long baseDelayMs = 300L;
+        private long maxDelayMs = 3_000L;
+        private long rateLimitDelayMs = 1_000L;
+
+        public int getMaxAttempts() {
+            return maxAttempts;
+        }
+
+        public void setMaxAttempts(int maxAttempts) {
+            this.maxAttempts = maxAttempts;
+        }
+
+        public long getBaseDelayMs() {
+            return baseDelayMs;
+        }
+
+        public void setBaseDelayMs(long baseDelayMs) {
+            this.baseDelayMs = baseDelayMs;
+        }
+
+        public long getMaxDelayMs() {
+            return maxDelayMs;
+        }
+
+        public void setMaxDelayMs(long maxDelayMs) {
+            this.maxDelayMs = maxDelayMs;
+        }
+
+        public long getRateLimitDelayMs() {
+            return rateLimitDelayMs;
+        }
+
+        public void setRateLimitDelayMs(long rateLimitDelayMs) {
+            this.rateLimitDelayMs = rateLimitDelayMs;
         }
     }
 }

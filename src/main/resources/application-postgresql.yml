@@ -10,6 +10,20 @@ vault:
     redrive-delay-ms: 60000
     redrive-initial-delay-ms: 10000
     redrive-batch-size: 100
+  trading:
+    upbit:
+      retry:
+        max-attempts: 2
+        base-delay-ms: 500
+        max-delay-ms: 5000
+        rate-limit-delay-ms: 1500
+  market-data:
+    upbit:
+      retry:
+        max-attempts: 4
+        base-delay-ms: 300
+        max-delay-ms: 3000
+        rate-limit-delay-ms: 1000
 
 spring:
   datasource:

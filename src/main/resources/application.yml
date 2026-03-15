@@ -5,10 +5,20 @@ vault:
       base-url: https://api.upbit.com
       access-key: ${UPBIT_ACCESS_KEY:}
       secret-key: ${UPBIT_SECRET_KEY:}
+      retry:
+        max-attempts: 2
+        base-delay-ms: 500
+        max-delay-ms: 5000
+        rate-limit-delay-ms: 1500
   market-data:
     provider: upbit
     upbit:
       base-url: https://api.upbit.com
+      retry:
+        max-attempts: 4
+        base-delay-ms: 300
+        max-delay-ms: 3000
+        rate-limit-delay-ms: 1000
   circuit-breaker:
     enabled: true
     failure-threshold: 3

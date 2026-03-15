@@ -26,6 +26,7 @@ public class VaultTradingProperties {
         private String baseUrl = "https://api.upbit.com";
         private String accessKey = "";
         private String secretKey = "";
+        private final Retry retry = new Retry();
 
         public String getBaseUrl() {
             return baseUrl;
@@ -49,6 +50,49 @@ public class VaultTradingProperties {
 
         public void setSecretKey(String secretKey) {
             this.secretKey = secretKey;
+        }
+
+        public Retry getRetry() {
+            return retry;
+        }
+    }
+
+    public static class Retry {
+        private int maxAttempts = 2;
+        private long baseDelayMs = 500L;
+        private long maxDelayMs = 5_000L;
+        private long rateLimitDelayMs = 1_500L;
+
+        public int getMaxAttempts() {
+            return maxAttempts;
+        }
+
+        public void setMaxAttempts(int maxAttempts) {
+            this.maxAttempts = maxAttempts;
+        }
+
+        public long getBaseDelayMs() {
+            return baseDelayMs;
+        }
+
+        public void setBaseDelayMs(long baseDelayMs) {
+            this.baseDelayMs = baseDelayMs;
+        }
+
+        public long getMaxDelayMs() {
+            return maxDelayMs;
+        }
+
+        public void setMaxDelayMs(long maxDelayMs) {
+            this.maxDelayMs = maxDelayMs;
+        }
+
+        public long getRateLimitDelayMs() {
+            return rateLimitDelayMs;
+        }
+
+        public void setRateLimitDelayMs(long rateLimitDelayMs) {
+            this.rateLimitDelayMs = rateLimitDelayMs;
         }
     }
 }

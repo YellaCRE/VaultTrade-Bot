@@ -107,7 +107,8 @@ public class InMemoryCircuitBreaker implements CircuitBreaker {
         }
 
         private void onFailure(Instant now, RuntimeException error, int failureThreshold, Duration openDuration) {
-            if (error instanceof CircuitBreakerOpenException) {
+            if (error instanceof CircuitBreakerOpenException || error instanceof CircuitBreakerBypassException) {
+                // Bypass errors are caller-visible failures but intentionally do not advance breaker state.
                 return;
             }
 
