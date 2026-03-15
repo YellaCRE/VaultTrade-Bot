@@ -89,9 +89,11 @@ class GlobalExceptionHandlerTest {
     @Test
     void mapsMalformedJsonToBadRequest() throws Exception {
         // Broken JSON should fail before controller logic and still return the shared error shape.
+        String malformedJson = "{\"marketSymbol\":\"KRW-BTC\"";
+
         mockMvc.perform(put("/api/config")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"))
+                        .content(malformedJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
                 .andExpect(jsonPath("$.message").value("request body is missing or malformed"))
