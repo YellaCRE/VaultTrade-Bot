@@ -9,6 +9,7 @@ public record ExecutionTrade(
         String tradeId,
         Money price,
         Quantity quantity,
+        Money fee,
         Instant executedAt
 ) {
     public ExecutionTrade {
@@ -20,6 +21,9 @@ public record ExecutionTrade(
         }
         if (quantity.value().signum() == 0) {
             throw new IllegalArgumentException("trade quantity must be positive");
+        }
+        if (fee == null) {
+            fee = Money.krw(java.math.BigDecimal.ZERO);
         }
     }
 

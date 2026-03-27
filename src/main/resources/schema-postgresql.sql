@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(32) NOT NULL,
     executed_quantity NUMERIC(30,8) NOT NULL,
     executed_amount_krw NUMERIC(30,0) NOT NULL,
+    executed_fee_krw NUMERIC(30,0) NOT NULL DEFAULT 0,
     exchange_order_id VARCHAR(128),
     version BIGINT NOT NULL
 );
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS portfolio_positions (
     version BIGINT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS executed_fee_krw NUMERIC(30,0) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_orders_market_created_at ON orders (market, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_updated_at ON portfolio_positions (updated_at DESC);

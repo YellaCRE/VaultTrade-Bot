@@ -35,6 +35,7 @@ class OrderAggregateTest {
         assertThat(order.status()).isEqualTo(OrderStatus.NEW);
         assertThat(order.executedQuantity().value()).isEqualByComparingTo("0.00000000");
         assertThat(order.executedAmount().amount()).isEqualByComparingTo("0");
+        assertThat(order.executedFee().amount()).isEqualByComparingTo("0");
         assertThat(order.createdAt()).isEqualTo(createdAt);
 
         List<OrderDomainEvent> events = order.pullDomainEvents();

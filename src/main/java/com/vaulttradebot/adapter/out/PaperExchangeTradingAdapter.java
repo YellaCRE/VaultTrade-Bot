@@ -20,6 +20,7 @@ public class PaperExchangeTradingAdapter implements ExchangeTradingPort {
                 UUID.randomUUID().toString(),
                 order.price(),
                 Quantity.of(order.quantity()),
+                com.vaulttradebot.domain.common.vo.Money.krw(java.math.BigDecimal.ZERO),
                 Instant.now()
         ));
         return order;

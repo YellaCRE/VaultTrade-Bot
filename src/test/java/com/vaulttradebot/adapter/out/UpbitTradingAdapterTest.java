@@ -44,6 +44,7 @@ class UpbitTradingAdapterTest {
                         "KRW-BTC",
                         "50000000",
                         "0",
+                        "0",
                         "0.01",
                         "0"
                 ));
@@ -58,7 +59,7 @@ class UpbitTradingAdapterTest {
 
     @Test
     void placeOrderMapsDoneStateToFilledOrder() {
-        // A fully executed Upbit response should translate into a filled aggregate with executed quantity.
+        // A fully executed Upbit response should translate into a filled aggregate with executed quantity and fee.
         Order order = Order.create(
                 Market.of("KRW-BTC"),
                 Side.SELL,
@@ -75,6 +76,7 @@ class UpbitTradingAdapterTest {
                         "KRW-BTC",
                         "51000000",
                         "51000000",
+                        "510",
                         "0",
                         "0.02"
                 ));
@@ -85,6 +87,7 @@ class UpbitTradingAdapterTest {
         assertThat(placed.status()).isEqualTo(OrderStatus.FILLED);
         assertThat(placed.exchangeOrderId()).isEqualTo("upbit-uuid");
         assertThat(placed.executedQuantity().value()).isEqualByComparingTo("0.02");
+        assertThat(placed.executedFee().amount()).isEqualByComparingTo("510");
     }
 
     @Test

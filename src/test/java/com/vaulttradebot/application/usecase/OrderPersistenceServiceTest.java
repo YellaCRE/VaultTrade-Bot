@@ -97,7 +97,7 @@ class OrderPersistenceServiceTest {
 
     @Test
     void updatesPortfolioWhenFilledBuyOrderIsPersisted() {
-        // Verifies a filled buy order writes the resulting position in the same transaction.
+        // Verifies a filled buy order writes the resulting position in the same transaction including fee-adjusted cost basis.
         InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
         InMemoryOutboxRepository outboxRepository = new InMemoryOutboxRepository();
         InMemoryPortfolioRepository portfolioRepository = new InMemoryPortfolioRepository();
@@ -123,6 +123,7 @@ class OrderPersistenceServiceTest {
                 "trade-1",
                 Money.krw(new BigDecimal("50000000")),
                 Quantity.of(new BigDecimal("0.00200000")),
+                Money.krw(new BigDecimal("100")),
                 clock.now()
         ));
 
@@ -131,6 +132,8 @@ class OrderPersistenceServiceTest {
         assertThat(portfolioRepository.findByMarket("KRW-BTC")).isPresent();
         assertThat(portfolioRepository.findByMarket("KRW-BTC").orElseThrow().quantity())
                 .isEqualByComparingTo("0.00200000");
+        assertThat(portfolioRepository.findByMarket("KRW-BTC").orElseThrow().averageEntryPrice().amount())
+                .isEqualByComparingTo("50050000.00000000");
     }
 
     @Test
@@ -162,6 +165,7 @@ class OrderPersistenceServiceTest {
                 "trade-1",
                 Money.krw(new BigDecimal("50000000")),
                 Quantity.of(new BigDecimal("0.00200000")),
+                Money.krw(BigDecimal.ZERO),
                 clock.now()
         ));
 

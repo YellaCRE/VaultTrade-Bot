@@ -43,6 +43,7 @@ public class OrderFillSyncService {
             String exchangeOrderId,
             java.math.BigDecimal executedQuantity,
             java.math.BigDecimal executedAmount,
+            java.math.BigDecimal executedFee,
             long version
     ) {
         static OrderSnapshot capture(Order order) {
@@ -51,6 +52,7 @@ public class OrderFillSyncService {
                     order.exchangeOrderId(),
                     order.executedQuantity().value(),
                     order.executedAmount().amount(),
+                    order.executedFee().amount(),
                     order.version()
             );
         }
@@ -60,6 +62,7 @@ public class OrderFillSyncService {
                     || !java.util.Objects.equals(exchangeOrderId, order.exchangeOrderId())
                     || executedQuantity.compareTo(order.executedQuantity().value()) != 0
                     || executedAmount.compareTo(order.executedAmount().amount()) != 0
+                    || executedFee.compareTo(order.executedFee().amount()) != 0
                     || version != order.version();
         }
     }

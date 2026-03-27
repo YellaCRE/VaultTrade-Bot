@@ -37,7 +37,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 UPDATE orders
                 SET market=?, order_type=?, side=?, quantity=?, price_krw=?, minimum_profit_price_krw=?,
                     strategy_id=?, idempotency_key=?, created_at=?, status=?, executed_quantity=?,
-                    executed_amount_krw=?, exchange_order_id=?, version=?
+                    executed_amount_krw=?, executed_fee_krw=?, exchange_order_id=?, version=?
                 WHERE id=?
                 """,
                 order.market().value(),
@@ -52,6 +52,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 order.status().name(),
                 order.executedQuantity().value(),
                 order.executedAmount().amount(),
+                order.executedFee().amount(),
                 order.exchangeOrderId(),
                 order.version(),
                 order.id()
@@ -61,8 +62,8 @@ public class JdbcOrderRepository implements OrderRepository {
                     """
                     INSERT INTO orders(
                         id, market, order_type, side, quantity, price_krw, minimum_profit_price_krw,
-                        strategy_id, idempotency_key, created_at, status, executed_quantity, executed_amount_krw, exchange_order_id, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        strategy_id, idempotency_key, created_at, status, executed_quantity, executed_amount_krw, executed_fee_krw, exchange_order_id, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     order.id(),
                     order.market().value(),
@@ -77,6 +78,7 @@ public class JdbcOrderRepository implements OrderRepository {
                     order.status().name(),
                     order.executedQuantity().value(),
                     order.executedAmount().amount(),
+                    order.executedFee().amount(),
                     order.exchangeOrderId(),
                     order.version()
             );
@@ -128,6 +130,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 OrderStatus.valueOf(rs.getString("status")),
                 Quantity.of(rs.getBigDecimal("executed_quantity")),
                 Money.krw(rs.getBigDecimal("executed_amount_krw")),
+                Money.krw(rs.getBigDecimal("executed_fee_krw")),
                 rs.getString("exchange_order_id"),
                 rs.getLong("version")
         );

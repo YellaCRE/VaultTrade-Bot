@@ -33,10 +33,12 @@ public final class UpbitOrderMapper {
         BigDecimal executed = parseDecimal(response.executedVolume());
         BigDecimal delta = executed.subtract(order.executedQuantity().value());
         if (delta.signum() > 0) {
+            BigDecimal deltaFee = parseDecimal(response.paidFee()).subtract(order.executedFee().amount()).max(BigDecimal.ZERO);
             order.execute(new ExecutionTrade(
                     UUID.randomUUID().toString(),
                     Money.of(resolveExecutionPrice(response), Asset.krw()),
                     Quantity.of(delta),
+                    Money.krw(deltaFee),
                     eventTime
             ));
         }

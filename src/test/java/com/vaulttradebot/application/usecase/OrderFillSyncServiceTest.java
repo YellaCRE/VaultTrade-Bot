@@ -25,7 +25,7 @@ class OrderFillSyncServiceTest {
 
     @Test
     void syncActiveOrdersPersistsNewFillDeltaIntoPortfolio() {
-        // Verifies active-order sync persists only the newly filled quantity into both order and portfolio state.
+        // Verifies active-order sync persists only the newly filled quantity and fee into both order and portfolio state.
         InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
         InMemoryOutboxRepository outboxRepository = new InMemoryOutboxRepository();
         InMemoryPortfolioRepository portfolioRepository = new InMemoryPortfolioRepository();
@@ -52,6 +52,7 @@ class OrderFillSyncServiceTest {
                 "trade-1",
                 Money.krw(new BigDecimal("50000000")),
                 Quantity.of(new BigDecimal("0.00400000")),
+                Money.krw(new BigDecimal("200")),
                 clock.now()
         ));
         orderPersistenceService.persist(order);
@@ -68,6 +69,7 @@ class OrderFillSyncServiceTest {
                         UUID.randomUUID().toString(),
                         Money.krw(new BigDecimal("50500000")),
                         Quantity.of(new BigDecimal("0.00600000")),
+                        Money.krw(new BigDecimal("300")),
                         Instant.parse("2026-03-27T12:01:00Z")
                 ));
                 return current;
@@ -90,11 +92,12 @@ class OrderFillSyncServiceTest {
         assertThat(synced.status().name()).isEqualTo("FILLED");
         assertThat(synced.executedQuantity().value()).isEqualByComparingTo("0.01000000");
         assertThat(synced.executedAmount().amount()).isEqualByComparingTo("503000");
+        assertThat(synced.executedFee().amount()).isEqualByComparingTo("500");
         assertThat(portfolioRepository.findByMarket("KRW-BTC")).isPresent();
         assertThat(portfolioRepository.findByMarket("KRW-BTC").orElseThrow().quantity())
                 .isEqualByComparingTo("0.01000000");
         assertThat(portfolioRepository.findByMarket("KRW-BTC").orElseThrow().averageEntryPrice().amount())
-                .isEqualByComparingTo("50300000.00000000");
+                .isEqualByComparingTo("50350000.00000000");
     }
 
     @Test

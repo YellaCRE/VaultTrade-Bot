@@ -92,6 +92,7 @@ public class InMemoryOrderRepository implements OrderRepository {
                 order.status(),
                 order.executedQuantity(),
                 order.executedAmount(),
+                order.executedFee(),
                 order.exchangeOrderId(),
                 order.version()
         );

@@ -30,6 +30,7 @@ public class Order {
     private OrderStatus status;
     private Quantity executedQuantity;
     private Money executedAmount;
+    private Money executedFee;
     private String exchangeOrderId;
     private long version;
 
@@ -75,6 +76,7 @@ public class Order {
         this.status = OrderStatus.NEW;
         this.executedQuantity = Quantity.of(BigDecimal.ZERO);
         this.executedAmount = Money.of(BigDecimal.ZERO, price.unitCurrency());
+        this.executedFee = Money.of(BigDecimal.ZERO, price.unitCurrency());
         this.exchangeOrderId = null;
         this.version = 0L;
         this.trades = new ArrayList<>();
@@ -134,6 +136,7 @@ public class Order {
             OrderStatus status,
             Quantity executedQuantity,
             Money executedAmount,
+            Money executedFee,
             String exchangeOrderId,
             long version
     ) {
@@ -152,10 +155,49 @@ public class Order {
         order.status = status;
         order.executedQuantity = executedQuantity;
         order.executedAmount = executedAmount;
+        order.executedFee = executedFee;
         order.exchangeOrderId = exchangeOrderId;
         order.version = version;
         order.domainEvents.clear();
         return order;
+    }
+
+    /** Backward-compatible rehydrate overload for snapshots without persisted fee totals. */
+    public static Order rehydrate(
+            OrderId id,
+            Market market,
+            OrderType orderType,
+            Side side,
+            Quantity quantity,
+            Price price,
+            Money minimumProfitPrice,
+            StrategyId strategyId,
+            IdempotencyKey idempotencyKey,
+            Instant createdAt,
+            OrderStatus status,
+            Quantity executedQuantity,
+            Money executedAmount,
+            String exchangeOrderId,
+            long version
+    ) {
+        return rehydrate(
+                id,
+                market,
+                orderType,
+                side,
+                quantity,
+                price,
+                minimumProfitPrice,
+                strategyId,
+                idempotencyKey,
+                createdAt,
+                status,
+                executedQuantity,
+                executedAmount,
+                Money.of(BigDecimal.ZERO, price.unitCurrency()),
+                exchangeOrderId,
+                version
+        );
     }
 
     /** Transitions the order from NEW to OPEN after exchange acceptance. */
@@ -188,6 +230,7 @@ public class Order {
         this.trades.add(trade);
         this.executedQuantity = nextExecutedQuantity;
         this.executedAmount = this.executedAmount.add(trade.executedAmount());
+        this.executedFee = this.executedFee.add(trade.fee());
 
         if (this.executedQuantity.value().compareTo(this.quantity.value()) == 0) {
             this.status = OrderStatus.FILLED;
@@ -317,6 +360,10 @@ public class Order {
 
     public Money executedAmount() {
         return executedAmount;
+    }
+
+    public Money executedFee() {
+        return executedFee;
     }
 
     public String exchangeOrderId() {

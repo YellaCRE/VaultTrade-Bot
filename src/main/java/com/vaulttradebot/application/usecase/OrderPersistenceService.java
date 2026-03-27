@@ -79,13 +79,15 @@ public class OrderPersistenceService {
     private void updatePortfolioPosition(Order order, Optional<Order> previousOrder) {
         BigDecimal previousExecutedQty = previousOrder.map(existing -> existing.executedQuantity().value()).orElse(BigDecimal.ZERO);
         BigDecimal previousExecutedAmount = previousOrder.map(existing -> existing.executedAmount().amount()).orElse(BigDecimal.ZERO);
+        BigDecimal previousExecutedFee = previousOrder.map(existing -> existing.executedFee().amount()).orElse(BigDecimal.ZERO);
 
         BigDecimal deltaQuantity = order.executedQuantity().value().subtract(previousExecutedQty);
         BigDecimal deltaAmount = order.executedAmount().amount().subtract(previousExecutedAmount);
+        BigDecimal deltaFee = order.executedFee().amount().subtract(previousExecutedFee);
         if (deltaQuantity.signum() == 0) {
             return;
         }
-        if (deltaQuantity.signum() < 0 || deltaAmount.signum() < 0) {
+        if (deltaQuantity.signum() < 0 || deltaAmount.signum() < 0 || deltaFee.signum() < 0) {
             throw new IllegalStateException("executed order state cannot move backwards");
         }
 
@@ -103,9 +105,9 @@ public class OrderPersistenceService {
                 : order.trades().getLast().executedAt();
 
         if (order.side() == Side.BUY) {
-            currentPosition.apply(new BuyFilled(order.market(), fillQuantity, executionPrice, Money.krw(BigDecimal.ZERO), occurredAt));
+            currentPosition.apply(new BuyFilled(order.market(), fillQuantity, executionPrice, Money.krw(deltaFee), occurredAt));
         } else {
-            currentPosition.apply(new SellFilled(order.market(), fillQuantity, executionPrice, Money.krw(BigDecimal.ZERO), occurredAt));
+            currentPosition.apply(new SellFilled(order.market(), fillQuantity, executionPrice, Money.krw(deltaFee), occurredAt));
         }
         portfolioRepository.save(currentPosition, expectedVersion);
     }

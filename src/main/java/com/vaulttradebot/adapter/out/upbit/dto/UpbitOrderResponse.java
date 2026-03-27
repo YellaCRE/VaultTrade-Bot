@@ -11,6 +11,8 @@ public record UpbitOrderResponse(
         String price,
         @JsonProperty("avg_price")
         String avgPrice,
+        @JsonProperty("paid_fee")
+        String paidFee,
         @JsonProperty("remaining_volume")
         String remainingVolume,
         @JsonProperty("executed_volume")
