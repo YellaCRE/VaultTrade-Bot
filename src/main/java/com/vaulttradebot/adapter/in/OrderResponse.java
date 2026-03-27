@@ -14,6 +14,7 @@ public record OrderResponse(
         String status,
         BigDecimal executedQuantity,
         BigDecimal executedAmountKrw,
+        BigDecimal executedFeeKrw,
         Instant createdAt
 ) {
     public static OrderResponse from(Order order) {
@@ -27,6 +28,7 @@ public record OrderResponse(
                 order.status().name(),
                 order.executedQuantity().value(),
                 order.executedAmount().amount(),
+                order.executedFee().amount(),
                 order.createdAt()
         );
     }
