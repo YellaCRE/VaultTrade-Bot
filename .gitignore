@@ -4,3 +4,8 @@
 /.idea/
 *.iml
 .DS_Store
+/server/.gradle/
+/server/build/
+/admin/node_modules/
+/admin/dist/
+/admin/.vite/

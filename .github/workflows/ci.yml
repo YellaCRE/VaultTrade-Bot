@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  server-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,4 +15,6 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
       - run: chmod +x gradlew
+        working-directory: server
       - run: ./gradlew test
+        working-directory: server
