@@ -6,6 +6,7 @@ import com.vaulttradebot.application.port.in.SchedulerQueryUseCase;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.query.SchedulerStatusSnapshot;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.config.VaultSchedulerProperties;
 import java.time.Duration;
 import java.time.Instant;
@@ -89,14 +90,14 @@ public class TradingCycleSchedulerService implements SchedulerQueryUseCase, Sche
                 properties.getCron(),
                 properties.getZone(),
                 properties.getMisfirePolicy().name(),
-                planned == null ? null : planned.toInstant(),
-                retry == null ? null : retry.executeAt(),
+                planned == null ? null : ApiTimeSupport.toApiTime(planned.toInstant()),
+                retry == null ? null : ApiTimeSupport.toApiTime(retry.executeAt()),
                 pendingRetryAttempt.get(),
-                lastScheduledAt.get(),
-                lastStartedAt.get(),
-                lastCompletedAt.get(),
-                lastSuccessAt.get(),
-                lastFailureAt.get(),
+                ApiTimeSupport.toApiTime(lastScheduledAt.get()),
+                ApiTimeSupport.toApiTime(lastStartedAt.get()),
+                ApiTimeSupport.toApiTime(lastCompletedAt.get()),
+                ApiTimeSupport.toApiTime(lastSuccessAt.get()),
+                ApiTimeSupport.toApiTime(lastFailureAt.get()),
                 lastTrigger.get(),
                 lastMessage.get(),
                 totalDispatches.get(),

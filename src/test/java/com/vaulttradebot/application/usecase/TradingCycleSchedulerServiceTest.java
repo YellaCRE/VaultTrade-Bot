@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.vaulttradebot.application.port.in.RunTradingCycleUseCase;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.query.SchedulerStatusSnapshot;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.config.VaultSchedulerProperties;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -71,7 +72,9 @@ class TradingCycleSchedulerServiceTest {
         SchedulerStatusSnapshot failedStatus = service.schedulerStatus();
         assertThat(failedStatus.totalFailures()).isEqualTo(1);
         assertThat(failedStatus.pendingRetryAttempt()).isEqualTo(1);
-        assertThat(failedStatus.pendingRetryAt()).isEqualTo(Instant.parse("2026-03-14T01:00:07Z"));
+        assertThat(failedStatus.pendingRetryAt()).isEqualTo(
+                ApiTimeSupport.toApiTime(Instant.parse("2026-03-14T01:00:07Z"))
+        );
 
         clock.set(Instant.parse("2026-03-14T01:00:07Z"));
         service.poll();

@@ -1,0 +1,13 @@
+vault:
+  market-data:
+    provider: static
+  scheduler:
+    enabled: false
+  outbox:
+    relay-delay-ms: 200
+  trading:
+    provider: paper
+    paper:
+      fill-on-place: true
+      fee-rate: 0
+      slippage-bps: 0

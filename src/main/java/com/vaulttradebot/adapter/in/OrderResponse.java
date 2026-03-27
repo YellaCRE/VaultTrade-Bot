@@ -1,8 +1,9 @@
 package com.vaulttradebot.adapter.in;
 
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.domain.execution.Order;
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 public record OrderResponse(
         String id,
@@ -15,7 +16,7 @@ public record OrderResponse(
         BigDecimal executedQuantity,
         BigDecimal executedAmountKrw,
         BigDecimal executedFeeKrw,
-        Instant createdAt
+        OffsetDateTime createdAt
 ) {
     public static OrderResponse from(Order order) {
         return new OrderResponse(
@@ -29,7 +30,7 @@ public record OrderResponse(
                 order.executedQuantity().value(),
                 order.executedAmount().amount(),
                 order.executedFee().amount(),
-                order.createdAt()
+                ApiTimeSupport.toApiTime(order.createdAt())
         );
     }
 }

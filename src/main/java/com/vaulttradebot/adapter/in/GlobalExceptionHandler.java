@@ -1,6 +1,7 @@
 package com.vaulttradebot.adapter.in;
 
 import com.vaulttradebot.application.idempotency.IdempotencyConflictException;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.domain.ops.KillSwitchActiveException;
 import com.vaulttradebot.domain.resilience.CircuitBreakerBypassException;
 import com.vaulttradebot.domain.resilience.CircuitBreakerOpenException;
@@ -137,7 +138,7 @@ public class GlobalExceptionHandler {
         var status = code.status();
         return ResponseEntity.status(status)
                 .body(new ErrorResponse(
-                        Instant.now(),
+                        ApiTimeSupport.toApiTime(Instant.now()),
                         status.value(),
                         status.getReasonPhrase(),
                         code,

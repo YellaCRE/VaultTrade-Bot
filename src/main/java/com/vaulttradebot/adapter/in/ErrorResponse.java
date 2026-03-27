@@ -1,9 +1,9 @@
 package com.vaulttradebot.adapter.in;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 public record ErrorResponse(
-        Instant timestamp,
+        OffsetDateTime timestamp,
         int status,
         String error,
         ErrorCode code,

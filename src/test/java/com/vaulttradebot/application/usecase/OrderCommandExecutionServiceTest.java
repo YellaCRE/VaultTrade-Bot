@@ -14,6 +14,7 @@ import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.application.port.out.OutboxPayloadSerializer;
 import com.vaulttradebot.application.query.BotStatusSnapshot;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.config.VaultTradingProperties;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
@@ -188,7 +189,14 @@ class OrderCommandExecutionServiceTest {
         return new BotControlUseCase() {
             @Override
             public BotStatusSnapshot status() {
-                return new BotStatusSnapshot(BotRunState.EMERGENCY_STOP, activatedAt, "kill-switch: " + reason, 0, activatedAt, reason);
+                return new BotStatusSnapshot(
+                        BotRunState.EMERGENCY_STOP,
+                        ApiTimeSupport.toApiTime(activatedAt),
+                        "kill-switch: " + reason,
+                        0,
+                        ApiTimeSupport.toApiTime(activatedAt),
+                        reason
+                );
             }
 
             @Override

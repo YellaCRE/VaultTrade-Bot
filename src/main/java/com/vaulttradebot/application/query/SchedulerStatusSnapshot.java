@@ -1,6 +1,6 @@
 package com.vaulttradebot.application.query;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 public record SchedulerStatusSnapshot(
         boolean enabled,
@@ -9,14 +9,14 @@ public record SchedulerStatusSnapshot(
         String cron,
         String zoneId,
         String misfirePolicy,
-        Instant nextPlannedAt,
-        Instant pendingRetryAt,
+        OffsetDateTime nextPlannedAt,
+        OffsetDateTime pendingRetryAt,
         int pendingRetryAttempt,
-        Instant lastScheduledAt,
-        Instant lastStartedAt,
-        Instant lastCompletedAt,
-        Instant lastSuccessAt,
-        Instant lastFailureAt,
+        OffsetDateTime lastScheduledAt,
+        OffsetDateTime lastStartedAt,
+        OffsetDateTime lastCompletedAt,
+        OffsetDateTime lastSuccessAt,
+        OffsetDateTime lastFailureAt,
         String lastTrigger,
         String lastMessage,
         long totalDispatches,

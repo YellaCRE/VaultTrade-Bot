@@ -20,6 +20,7 @@ import com.vaulttradebot.application.port.out.TradingCycleSnapshotRepository;
 import com.vaulttradebot.application.query.BotStatusSnapshot;
 import com.vaulttradebot.application.query.MetricsSnapshot;
 import com.vaulttradebot.application.query.PortfolioSnapshot;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.domain.common.vo.Candle;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
@@ -477,7 +478,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                         riskReason,
                         openOrder,
                         cycleId,
-                        buildOrderPolicy(config),
+                        buildOrderPolicy(config, timeframe),
                         lastOrderAt.get()
                 )
         );
@@ -802,7 +803,8 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         return Market.of(symbol);
     }
 
-    private OrderMarketPolicy buildOrderPolicy(BotConfig config) {
+    private OrderMarketPolicy buildOrderPolicy(BotConfig config, Timeframe timeframe) {
+        Duration staleAfter = timeframe.duration().plusSeconds(5);
         // Keep policy explicit so decision behavior is deterministic.
         return new OrderMarketPolicy(
                 BigDecimal.ONE,
@@ -816,7 +818,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 new BigDecimal("0.0200"),
                 BigDecimal.ONE,
                 BigDecimal.ONE,
-                Duration.ofSeconds(5),
+                staleAfter,
                 Duration.ofSeconds(config.cooldownSeconds())
         );
     }
@@ -961,10 +963,10 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         }
         return new BotStatusSnapshot(
                 state.get(),
-                lastCycleAt.get(),
+                ApiTimeSupport.toApiTime(lastCycleAt.get()),
                 error,
                 consecutiveFailures.get(),
-                killSwitchActivatedAt.get(),
+                ApiTimeSupport.toApiTime(killSwitchActivatedAt.get()),
                 killSwitchReason.get()
         );
     }

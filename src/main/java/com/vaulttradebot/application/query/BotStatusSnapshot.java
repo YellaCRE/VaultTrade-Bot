@@ -2,14 +2,14 @@ package com.vaulttradebot.application.query;
 
 import com.vaulttradebot.domain.ops.BotRunState;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 public record BotStatusSnapshot(
         BotRunState state,
-        Instant lastCycleAt,
+        OffsetDateTime lastCycleAt,
         String lastError,
         int consecutiveFailures,
-        Instant killSwitchActivatedAt,
+        OffsetDateTime killSwitchActivatedAt,
         String killSwitchReason
 ) {
 }

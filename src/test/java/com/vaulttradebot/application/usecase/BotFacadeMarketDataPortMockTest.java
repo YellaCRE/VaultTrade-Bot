@@ -141,9 +141,9 @@ class BotFacadeMarketDataPortMockTest {
 
     @Test
     void rejectsStaleMarketDataAndKeepsDecisionAsHold() {
-        // A stale candle timestamp should force HOLD and skip outbox command creation.
+        // A sufficiently old closed candle should force HOLD and skip outbox command creation.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(
-                List.of(candleAt(NOW.minusSeconds(120)))
+                List.of(candleAt(NOW.minusSeconds(181)))
         );
         when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
 

@@ -22,6 +22,7 @@ import com.vaulttradebot.application.port.out.OutboxRepository;
 import com.vaulttradebot.application.port.out.PortfolioRepository;
 import com.vaulttradebot.application.port.out.TradingCycleLockPort;
 import com.vaulttradebot.application.port.out.TradingCycleSnapshotRepository;
+import com.vaulttradebot.config.ApiTimeSupport;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Timeframe;
@@ -235,7 +236,7 @@ class BotFacadeServiceTest {
 
         assertThat(status.state()).isEqualTo(BotRunState.EMERGENCY_STOP);
         assertThat(status.killSwitchReason()).isEqualTo("manual intervention");
-        assertThat(status.killSwitchActivatedAt()).isEqualTo(NOW);
+        assertThat(status.killSwitchActivatedAt()).isEqualTo(ApiTimeSupport.toApiTime(NOW));
         verify(outboxRepository, times(1)).save(any(OutboxMessage.class));
         verify(notificationPort, times(1)).notify("Kill switch activated: manual intervention");
     }
