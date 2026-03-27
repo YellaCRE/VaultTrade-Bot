@@ -55,7 +55,17 @@ CREATE TABLE IF NOT EXISTS trading_cycle_snapshot (
     created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS portfolio_positions (
+    market_symbol VARCHAR(32) PRIMARY KEY,
+    quantity NUMERIC(30,8) NOT NULL,
+    avg_price_krw NUMERIC(30,8) NOT NULL,
+    realized_pnl_krw NUMERIC(30,0) NOT NULL,
+    version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_market_created_at ON orders (market, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_portfolio_positions_updated_at ON portfolio_positions (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_outbox_ready
     ON outbox (next_attempt_at, created_at)
     WHERE published_at IS NULL AND dead_lettered_at IS NULL;

@@ -54,6 +54,15 @@ CREATE TABLE IF NOT EXISTS trading_cycle_snapshot (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS portfolio_positions (
+    market_symbol VARCHAR(32) PRIMARY KEY,
+    quantity DECIMAL(30,8) NOT NULL,
+    avg_price_krw DECIMAL(30,8) NOT NULL,
+    realized_pnl_krw DECIMAL(30,0) NOT NULL,
+    version BIGINT NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS payload_version INT NOT NULL DEFAULT 1;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS last_error CLOB;
@@ -61,6 +70,7 @@ ALTER TABLE outbox ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_orders_market_created_at ON orders(market, created_at);
+CREATE INDEX IF NOT EXISTS idx_portfolio_positions_updated_at ON portfolio_positions(updated_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_publish_scan ON outbox(published_at, dead_lettered_at, next_attempt_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_created_at ON outbox(created_at);
 CREATE INDEX IF NOT EXISTS idx_cycle_pair_ts ON trading_cycle_snapshot(pair, data_timestamp);
