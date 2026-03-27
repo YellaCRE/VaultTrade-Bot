@@ -27,6 +27,7 @@ class GlobalExceptionHandlerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @SuppressWarnings("unused")
     @MockBean
     private BotControlUseCase botControlUseCase;
 
