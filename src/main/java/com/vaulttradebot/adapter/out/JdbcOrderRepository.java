@@ -12,7 +12,6 @@ import com.vaulttradebot.domain.execution.vo.OrderId;
 import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import com.vaulttradebot.domain.execution.vo.OrderType;
 import com.vaulttradebot.domain.execution.vo.StrategyId;
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;

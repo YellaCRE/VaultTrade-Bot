@@ -6,6 +6,7 @@ import java.time.Instant;
 
 public record OrderResponse(
         String id,
+        String exchangeOrderId,
         String market,
         String side,
         BigDecimal quantity,
@@ -18,6 +19,7 @@ public record OrderResponse(
     public static OrderResponse from(Order order) {
         return new OrderResponse(
                 order.id(),
+                order.exchangeOrderId(),
                 order.market().value(),
                 order.side().name(),
                 order.quantity(),
