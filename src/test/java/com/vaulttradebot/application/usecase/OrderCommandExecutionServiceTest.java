@@ -79,6 +79,11 @@ class OrderCommandExecutionServiceTest {
             }
 
             @Override
+            public Order refreshOrder(Order order) {
+                return order;
+            }
+
+            @Override
             public void cancelOrder(String orderId) {
                 canceledExchangeOrderId.set(orderId);
             }

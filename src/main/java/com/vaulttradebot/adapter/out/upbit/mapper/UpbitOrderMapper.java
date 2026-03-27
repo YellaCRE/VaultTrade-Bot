@@ -26,41 +26,32 @@ public final class UpbitOrderMapper {
         }
 
         String state = response.state();
-        if ("wait".equalsIgnoreCase(state) && order.status() == OrderStatus.NEW) {
+        if (("wait".equalsIgnoreCase(state) || "done".equalsIgnoreCase(state)) && order.status() == OrderStatus.NEW) {
             order.acceptByExchange();
-            return;
         }
 
-        if ("cancel".equalsIgnoreCase(state)) {
+        BigDecimal executed = parseDecimal(response.executedVolume());
+        BigDecimal delta = executed.subtract(order.executedQuantity().value());
+        if (delta.signum() > 0) {
+            order.execute(new ExecutionTrade(
+                    UUID.randomUUID().toString(),
+                    Money.of(resolveExecutionPrice(response), Asset.krw()),
+                    Quantity.of(delta),
+                    eventTime
+            ));
+        }
+
+        if ("cancel".equalsIgnoreCase(state) && order.canCancel()) {
             order.cancel();
-            return;
         }
+    }
 
-        if ("done".equalsIgnoreCase(state)) {
-            if (order.status() == OrderStatus.NEW) {
-                order.acceptByExchange();
-            }
-            BigDecimal executed = parseDecimal(response.executedVolume());
-            BigDecimal remaining = parseDecimal(response.remainingVolume());
-            BigDecimal nextFillQty = order.quantity().subtract(order.executedQuantity().value());
-            if (remaining.signum() == 0 && nextFillQty.signum() > 0) {
-                order.execute(new ExecutionTrade(
-                        UUID.randomUUID().toString(),
-                        Money.of(parseDecimal(response.price()), Asset.krw()),
-                        Quantity.of(nextFillQty),
-                        eventTime
-                ));
-            }
-            if (executed.signum() > 0 && order.executedQuantity().value().compareTo(executed) < 0) {
-                BigDecimal delta = executed.subtract(order.executedQuantity().value());
-                order.execute(new ExecutionTrade(
-                        UUID.randomUUID().toString(),
-                        Money.of(parseDecimal(response.price()), Asset.krw()),
-                        Quantity.of(delta),
-                        eventTime
-                ));
-            }
+    private static BigDecimal resolveExecutionPrice(UpbitOrderResponse response) {
+        BigDecimal avgPrice = parseDecimal(response.avgPrice());
+        if (avgPrice.signum() > 0) {
+            return avgPrice;
         }
+        return parseDecimal(response.price());
     }
 
     private static BigDecimal parseDecimal(String value) {

@@ -136,6 +136,7 @@ class BotFacadeServiceTest {
 
     @Test
     void placeDecisionEnqueuesOutboxCommand() {
+        // Verifies a PLACE decision persists one outbox command along with the cycle snapshot.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.place(
                         OrderCommand.create(
@@ -159,6 +160,7 @@ class BotFacadeServiceTest {
 
     @Test
     void modifyDecisionEnqueuesOneOutboxCommand() {
+        // Verifies a MODIFY decision emits one replace-style outbox command.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.modify(
                         OrderCommand.replace(
@@ -182,6 +184,7 @@ class BotFacadeServiceTest {
 
     @Test
     void cancelDecisionEnqueuesCancelCommand() {
+        // Verifies a CANCEL decision emits one cancel outbox command.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.cancel(
                         OrderCommand.cancel("order-1", "risk rejected"),
@@ -197,6 +200,7 @@ class BotFacadeServiceTest {
 
     @Test
     void holdDecisionStoresSnapshotOnly() {
+        // Verifies a HOLD decision records the snapshot without enqueueing any outbox command.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.hold("no action"));
 

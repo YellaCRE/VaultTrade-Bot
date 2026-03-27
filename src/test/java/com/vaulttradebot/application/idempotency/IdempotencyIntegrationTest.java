@@ -131,6 +131,7 @@ class IdempotencyIntegrationTest {
 
     @Test
     void sameCycleIdTwicePublishesOutboxOnlyOnce() {
+        // Verifies the same logical cycle is replayed from stored state without duplicating outbox commands.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.place(
                         OrderCommand.create(
@@ -155,6 +156,7 @@ class IdempotencyIntegrationTest {
 
     @Test
     void replayUsesFirstSnapshotEvenWhenDecisionChanges() {
+        // Verifies replay returns the first persisted outcome even if a later decision would differ.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.place(
                                 OrderCommand.create(
@@ -183,6 +185,7 @@ class IdempotencyIntegrationTest {
 
     @Test
     void lockFailureSkipsCycleImmediately() {
+        // Verifies lock acquisition failure short-circuits the cycle before any trading work starts.
         TradingCycleLockPort blockedLock = org.mockito.Mockito.mock(TradingCycleLockPort.class);
         when(blockedLock.tryAcquire(any())).thenReturn(false);
 

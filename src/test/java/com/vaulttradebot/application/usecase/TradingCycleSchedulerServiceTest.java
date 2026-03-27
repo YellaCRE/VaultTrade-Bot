@@ -14,14 +14,21 @@ import java.util.Queue;
 import org.junit.jupiter.api.Test;
 
 class TradingCycleSchedulerServiceTest {
+    private final OrderFillSyncService noOpFillSyncService = new OrderFillSyncService(null, null, null) {
+        @Override
+        public void syncActiveOrders() {
+        }
+    };
 
     @Test
     void pollRunsDueCronSlotOnce() {
+        // Verifies one due cron slot dispatches exactly one scheduled trading cycle.
         MutableClock clock = new MutableClock(Instant.parse("2026-03-14T01:00:01Z"));
         StubTradingCycleUseCase useCase = new StubTradingCycleUseCase(new CycleResult(true, false, "ok"));
         List<String> notifications = new ArrayList<>();
         TradingCycleSchedulerService service = new TradingCycleSchedulerService(
                 useCase,
+                noOpFillSyncService,
                 clock,
                 notifications::add,
                 schedulerProperties()
@@ -43,6 +50,7 @@ class TradingCycleSchedulerServiceTest {
 
     @Test
     void failedExecutionSchedulesRetryWithBackoff() {
+        // Verifies a failed cycle schedules one retry using the configured backoff policy.
         MutableClock clock = new MutableClock(Instant.parse("2026-03-14T01:00:00Z"));
         StubTradingCycleUseCase useCase = new StubTradingCycleUseCase(
                 new CycleResult(true, false, "cycle failed: first"),
@@ -51,6 +59,7 @@ class TradingCycleSchedulerServiceTest {
         List<String> notifications = new ArrayList<>();
         TradingCycleSchedulerService service = new TradingCycleSchedulerService(
                 useCase,
+                noOpFillSyncService,
                 clock,
                 notifications::add,
                 schedulerProperties()
@@ -77,6 +86,7 @@ class TradingCycleSchedulerServiceTest {
 
     @Test
     void misfireSkipPolicyDropsOverdueSlots() {
+        // Verifies SKIP misfire policy drops overdue slots instead of replaying stale executions.
         MutableClock clock = new MutableClock(Instant.parse("2026-03-14T01:00:01Z"));
         StubTradingCycleUseCase useCase = new StubTradingCycleUseCase(new CycleResult(true, false, "ok"));
         List<String> notifications = new ArrayList<>();
@@ -85,6 +95,7 @@ class TradingCycleSchedulerServiceTest {
         properties.setMisfireThresholdMs(1000L);
         TradingCycleSchedulerService service = new TradingCycleSchedulerService(
                 useCase,
+                noOpFillSyncService,
                 clock,
                 notifications::add,
                 properties
@@ -103,10 +114,12 @@ class TradingCycleSchedulerServiceTest {
 
     @Test
     void pausePreventsAutomaticDispatchUntilResume() {
+        // Verifies pause blocks automatic dispatches until the scheduler is resumed.
         MutableClock clock = new MutableClock(Instant.parse("2026-03-14T01:00:00Z"));
         StubTradingCycleUseCase useCase = new StubTradingCycleUseCase(new CycleResult(true, false, "ok"));
         TradingCycleSchedulerService service = new TradingCycleSchedulerService(
                 useCase,
+                noOpFillSyncService,
                 clock,
                 message -> {
                 },

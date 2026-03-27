@@ -10,6 +10,7 @@ class BotConfigTest {
 
     @Test
     void acceptsKrwQuotedMarketSymbol() {
+        // Verifies the config accepts the supported KRW-quoted market symbol format.
         BotConfig config = new BotConfig(
                 "KRW-BTC",
                 true,
@@ -26,6 +27,7 @@ class BotConfigTest {
 
     @Test
     void rejectsUnsupportedQuoteCurrency() {
+        // Verifies non-KRW quote currencies are rejected by config validation.
         assertThatThrownBy(() -> new BotConfig(
                 "USDT-BTC",
                 true,
@@ -42,6 +44,7 @@ class BotConfigTest {
 
     @Test
     void rejectsInvalidMarketSymbolFormat() {
+        // Verifies malformed market symbols are rejected when they do not follow QUOTE-BASE format.
         assertThatThrownBy(() -> new BotConfig(
                 "BTCKRW",
                 true,

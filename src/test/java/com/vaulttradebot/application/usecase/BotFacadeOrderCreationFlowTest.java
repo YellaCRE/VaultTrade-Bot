@@ -122,6 +122,7 @@ class BotFacadeOrderCreationFlowTest {
 
     @Test
     void savesSnapshotAndOutboxWhenDecisionIsPlace() {
+        // Verifies a PLACE decision stores both the cycle snapshot and one outbox command.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.place(
                         OrderCommand.create(
@@ -146,6 +147,7 @@ class BotFacadeOrderCreationFlowTest {
 
     @Test
     void savesSnapshotOnlyWhenDecisionIsHold() {
+        // Verifies a HOLD decision stores only the cycle snapshot and does not enqueue an outbox command.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.hold("risk rejected"));
 
@@ -158,6 +160,7 @@ class BotFacadeOrderCreationFlowTest {
 
     @Test
     void rollsBackSnapshotWhenOutboxFails() {
+        // Verifies snapshot persistence is rolled back when the outbox write fails in the same transaction.
         when(orderDecisionService.decide(any(OrderDecisionContext.class)))
                 .thenReturn(OrderActionDecision.place(
                         OrderCommand.create(

@@ -2,6 +2,7 @@ package com.vaulttradebot.adapter.out;
 
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,7 @@ public class InMemoryOrderRepository implements OrderRepository {
 
     @Override
     public Order save(Order order) {
+        Order stored = copy(order);
         synchronized (orders) {
             int index = -1;
             for (int i = 0; i < orders.size(); i++) {
@@ -24,18 +26,31 @@ public class InMemoryOrderRepository implements OrderRepository {
                 }
             }
             if (index >= 0) {
-                orders.set(index, order);
+                orders.set(index, stored);
             } else {
-                orders.add(order);
+                orders.add(stored);
             }
         }
-        return order;
+        return copy(stored);
     }
 
     @Override
     public List<Order> findAll() {
         synchronized (orders) {
-            return List.copyOf(orders);
+            return orders.stream().map(InMemoryOrderRepository::copy).toList();
+        }
+    }
+
+    @Override
+    public List<Order> findActiveOrders() {
+        synchronized (orders) {
+            return orders.stream()
+                    .filter(order -> order.status() == OrderStatus.NEW
+                            || order.status() == OrderStatus.OPEN
+                            || order.status() == OrderStatus.PARTIAL_FILLED
+                            || order.status() == OrderStatus.CANCEL_REQUESTED)
+                    .map(InMemoryOrderRepository::copy)
+                    .toList();
         }
     }
 
@@ -44,20 +59,41 @@ public class InMemoryOrderRepository implements OrderRepository {
         synchronized (orders) {
             return orders.stream()
                     .filter(order -> order.id().equals(orderId))
+                    .map(InMemoryOrderRepository::copy)
                     .findFirst();
         }
     }
 
     List<Order> snapshot() {
         synchronized (orders) {
-            return new ArrayList<>(orders);
+            return orders.stream().map(InMemoryOrderRepository::copy).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         }
     }
 
     void restore(List<Order> snapshot) {
         synchronized (orders) {
             orders.clear();
-            orders.addAll(snapshot);
+            orders.addAll(snapshot.stream().map(InMemoryOrderRepository::copy).toList());
         }
+    }
+
+    private static Order copy(Order order) {
+        return Order.rehydrate(
+                order.orderId(),
+                order.market(),
+                order.orderType(),
+                order.side(),
+                order.originalQuantity(),
+                order.avgPriceValue(),
+                order.minimumProfitPrice(),
+                order.strategyId(),
+                order.idempotencyKey(),
+                order.createdAt(),
+                order.status(),
+                order.executedQuantity(),
+                order.executedAmount(),
+                order.exchangeOrderId(),
+                order.version()
+        );
     }
 }

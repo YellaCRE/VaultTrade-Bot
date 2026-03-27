@@ -13,6 +13,7 @@ class InMemoryCircuitBreakerTest {
 
     @Test
     void opensAfterThresholdAndFastFailsUntilCooldownExpires() {
+        // Verifies the breaker opens after repeated failures and recovers after the configured cooldown.
         AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-03-14T00:00:00Z"));
         InMemoryCircuitBreaker circuitBreaker = new InMemoryCircuitBreaker(clock(now), properties(2, 30_000L, 1));
 
@@ -41,6 +42,7 @@ class InMemoryCircuitBreakerTest {
 
     @Test
     void reopensWhenHalfOpenProbeFails() {
+        // Verifies a failed half-open probe immediately transitions the breaker back to OPEN.
         AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-03-14T00:00:00Z"));
         InMemoryCircuitBreaker circuitBreaker = new InMemoryCircuitBreaker(clock(now), properties(1, 10_000L, 1));
 

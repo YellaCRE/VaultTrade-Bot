@@ -9,6 +9,8 @@ public record UpbitOrderResponse(
         String side,
         String market,
         String price,
+        @JsonProperty("avg_price")
+        String avgPrice,
         @JsonProperty("remaining_volume")
         String remainingVolume,
         @JsonProperty("executed_volume")

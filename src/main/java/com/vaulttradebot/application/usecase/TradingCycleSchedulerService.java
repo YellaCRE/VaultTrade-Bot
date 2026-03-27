@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TradingCycleSchedulerService implements SchedulerQueryUseCase, SchedulerControlUseCase {
     private final RunTradingCycleUseCase runTradingCycleUseCase;
+    private final OrderFillSyncService orderFillSyncService;
     private final ClockPort clockPort;
     private final NotificationPort notificationPort;
     private final VaultSchedulerProperties properties;
@@ -47,11 +48,13 @@ public class TradingCycleSchedulerService implements SchedulerQueryUseCase, Sche
 
     public TradingCycleSchedulerService(
             RunTradingCycleUseCase runTradingCycleUseCase,
+            OrderFillSyncService orderFillSyncService,
             ClockPort clockPort,
             NotificationPort notificationPort,
             VaultSchedulerProperties properties
     ) {
         this.runTradingCycleUseCase = runTradingCycleUseCase;
+        this.orderFillSyncService = orderFillSyncService;
         this.clockPort = clockPort;
         this.notificationPort = notificationPort;
         this.properties = properties;
@@ -61,6 +64,8 @@ public class TradingCycleSchedulerService implements SchedulerQueryUseCase, Sche
         if (!properties.isEnabled()) {
             return;
         }
+
+        orderFillSyncService.syncActiveOrders();
 
         DispatchPlan plan;
         synchronized (monitor) {

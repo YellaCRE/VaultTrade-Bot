@@ -26,6 +26,11 @@ public class PaperExchangeTradingAdapter implements ExchangeTradingPort {
     }
 
     @Override
+    public Order refreshOrder(Order order) {
+        return order;
+    }
+
+    @Override
     public void cancelOrder(String orderId) {
         // No-op in local paper adapter.
     }

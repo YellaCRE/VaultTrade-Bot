@@ -90,6 +90,18 @@ public class JdbcOrderRepository implements OrderRepository {
     }
 
     @Override
+    public List<Order> findActiveOrders() {
+        return jdbcTemplate.query(
+                """
+                SELECT * FROM orders
+                WHERE status IN ('NEW', 'OPEN', 'PARTIAL_FILLED', 'CANCEL_REQUESTED')
+                ORDER BY created_at ASC
+                """,
+                this::mapOrder
+        );
+    }
+
+    @Override
     public java.util.Optional<Order> findById(String orderId) {
         return jdbcTemplate.query(
                         "SELECT * FROM orders WHERE id=?",

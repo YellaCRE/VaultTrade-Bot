@@ -9,5 +9,7 @@ public interface OrderRepository {
 
     List<Order> findAll();
 
+    List<Order> findActiveOrders();
+
     Optional<Order> findById(String orderId);
 }

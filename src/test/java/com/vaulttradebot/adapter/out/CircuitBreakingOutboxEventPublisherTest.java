@@ -21,6 +21,7 @@ class CircuitBreakingOutboxEventPublisherTest {
 
     @Test
     void opensAndBlocksPublishCallsAfterRepeatedFailures() {
+        // Verifies repeated delegate failures open the breaker and block later publish attempts.
         AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-03-14T00:00:00Z"));
         InMemoryCircuitBreaker circuitBreaker = new InMemoryCircuitBreaker(now::get, properties(true, 2, 30_000L, 1));
         RecordingNotificationPort notifications = new RecordingNotificationPort();
@@ -50,6 +51,7 @@ class CircuitBreakingOutboxEventPublisherTest {
 
     @Test
     void bypassesCircuitBreakerWhenDisabled() {
+        // Verifies publish calls pass straight through when breaker support is disabled by config.
         AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-03-14T00:00:00Z"));
         InMemoryCircuitBreaker circuitBreaker = new InMemoryCircuitBreaker(clock(now), properties(false, 2, 30_000L, 1));
         RecordingNotificationPort notifications = new RecordingNotificationPort();

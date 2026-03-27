@@ -30,6 +30,7 @@ class UpbitMarketDataAdapterTest {
 
     @Test
     void mapsTickerTradePriceToKrwMoney() {
+        // Verifies ticker last-trade price is mapped into the domain KRW money value.
         when(quotationClient.getTicker("KRW-BTC"))
                 .thenReturn(new UpbitTickerResponse("KRW-BTC", new BigDecimal("50234000")));
 
@@ -41,6 +42,7 @@ class UpbitMarketDataAdapterTest {
 
     @Test
     void mapsMinuteCandlesIntoAscendingDomainCandlesAndAlignsToFrame() {
+        // Verifies reverse-ordered exchange candles are normalized into ascending frame-aligned domain candles.
         Instant now = Instant.parse("2026-03-14T10:37:21Z");
         when(quotationClient.getMinuteCandles(eq("KRW-BTC"), eq(60), eq(3), eq(Instant.parse("2026-03-14T10:00:00Z"))))
                 .thenReturn(List.of(
@@ -62,6 +64,7 @@ class UpbitMarketDataAdapterTest {
 
     @Test
     void returnsEmptyListWhenQueryArgumentsAreInvalid() {
+        // Verifies invalid candle query inputs fail closed by returning an empty list.
         UpbitMarketDataAdapter adapter = new UpbitMarketDataAdapter(quotationClient);
 
         assertThat(adapter.getRecentCandles(MARKET, Timeframe.M1, 0, Instant.now())).isEmpty();
@@ -71,6 +74,7 @@ class UpbitMarketDataAdapterTest {
 
     @Test
     void failsFastWhenTickerPriceIsMissing() {
+        // Verifies missing ticker trade price is treated as an invalid upstream response.
         when(quotationClient.getTicker("KRW-BTC"))
                 .thenReturn(new UpbitTickerResponse("KRW-BTC", null));
 

@@ -286,6 +286,10 @@ public class Order {
         return Money.of(price.value(), price.unitCurrency());
     }
 
+    public Price avgPriceValue() {
+        return price;
+    }
+
     public Money minimumProfitPrice() {
         return minimumProfitPrice;
     }

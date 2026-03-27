@@ -43,6 +43,7 @@ class UpbitTradingAdapterTest {
                         "bid",
                         "KRW-BTC",
                         "50000000",
+                        "0",
                         "0.01",
                         "0"
                 ));
@@ -72,6 +73,7 @@ class UpbitTradingAdapterTest {
                         "done",
                         "ask",
                         "KRW-BTC",
+                        "51000000",
                         "51000000",
                         "0",
                         "0.02"

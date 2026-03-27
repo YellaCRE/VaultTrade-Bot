@@ -89,6 +89,12 @@ public class UpbitTradingClient {
         return delete("/v1/order", body);
     }
 
+    public UpbitOrderResponse getOrder(String uuid) {
+        Map<String, Object> query = new LinkedHashMap<>();
+        query.put("uuid", requireText(uuid, "order uuid"));
+        return get("/v1/order", query);
+    }
+
     public UpbitOrderResponse cancelOrder(UpbitCancelOrderRequest request) {
         return cancelOrder(request.uuid());
     }
@@ -114,6 +120,22 @@ public class UpbitTradingClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + createJwt(body))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
+                    .retrieve()
+                    .body(UpbitOrderResponse.class));
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("failed to call upbit trading endpoint " + path, ex);
+        }
+    }
+
+    private UpbitOrderResponse get(String path, Map<String, Object> query) {
+        try {
+            return executeProtected("GET " + path, () -> restClient.get()
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path(path);
+                        query.forEach(builder::queryParam);
+                        return builder.build();
+                    })
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + createJwt(query))
                     .retrieve()
                     .body(UpbitOrderResponse.class));
         } catch (RestClientException ex) {

@@ -181,6 +181,7 @@ class BotFacadeMarketDataPortMockTest {
 
     @Test
     void holdsWhenClosedCandlesContainMaterialGap() {
+        // Verifies materially gapped candle history results in a HOLD decision and no downstream order work.
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(List.of(
                 candleAt(NOW.minusSeconds(301)),
                 candleAt(NOW.minusSeconds(61))

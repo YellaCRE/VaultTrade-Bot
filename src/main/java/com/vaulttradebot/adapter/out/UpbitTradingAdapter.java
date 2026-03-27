@@ -48,6 +48,24 @@ public class UpbitTradingAdapter implements ExchangeTradingPort {
     }
 
     @Override
+    public Order refreshOrder(Order order) {
+        if (order == null) {
+            throw new IllegalArgumentException("order must not be null");
+        }
+        if (order.exchangeOrderId() == null || order.exchangeOrderId().isBlank()) {
+            throw new IllegalArgumentException("exchange order id must not be blank");
+        }
+
+        UpbitOrderResponse response = tradingClient.getOrder(order.exchangeOrderId());
+        if (response == null) {
+            throw new IllegalStateException("upbit order lookup response was empty");
+        }
+
+        UpbitOrderMapper.applyExchangeState(order, response, Instant.now());
+        return order;
+    }
+
+    @Override
     public void cancelOrder(String orderId) {
         // Upbit cancel API works with the exchange UUID, so callers must pass that identifier here.
         UpbitOrderResponse response = tradingClient.cancelOrder(orderId);
