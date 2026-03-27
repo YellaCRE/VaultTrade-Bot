@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(32) NOT NULL,
     executed_quantity DECIMAL(30,8) NOT NULL,
     executed_amount_krw DECIMAL(30,0) NOT NULL,
+    exchange_order_id VARCHAR(128),
     version BIGINT NOT NULL
 );
 
@@ -68,6 +69,7 @@ ALTER TABLE outbox ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS last_error CLOB;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMP;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(128);
 
 CREATE INDEX IF NOT EXISTS idx_orders_market_created_at ON orders(market, created_at);
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_updated_at ON portfolio_positions(updated_at);

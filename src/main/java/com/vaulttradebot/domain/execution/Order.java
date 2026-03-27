@@ -30,6 +30,7 @@ public class Order {
     private OrderStatus status;
     private Quantity executedQuantity;
     private Money executedAmount;
+    private String exchangeOrderId;
     private long version;
 
     private final List<ExecutionTrade> trades;
@@ -74,6 +75,7 @@ public class Order {
         this.status = OrderStatus.NEW;
         this.executedQuantity = Quantity.of(BigDecimal.ZERO);
         this.executedAmount = Money.of(BigDecimal.ZERO, price.unitCurrency());
+        this.exchangeOrderId = null;
         this.version = 0L;
         this.trades = new ArrayList<>();
         this.domainEvents = new ArrayList<>();
@@ -132,6 +134,7 @@ public class Order {
             OrderStatus status,
             Quantity executedQuantity,
             Money executedAmount,
+            String exchangeOrderId,
             long version
     ) {
         Order order = new Order(
@@ -149,6 +152,7 @@ public class Order {
         order.status = status;
         order.executedQuantity = executedQuantity;
         order.executedAmount = executedAmount;
+        order.exchangeOrderId = exchangeOrderId;
         order.version = version;
         order.domainEvents.clear();
         return order;
@@ -311,6 +315,10 @@ public class Order {
         return executedAmount;
     }
 
+    public String exchangeOrderId() {
+        return exchangeOrderId;
+    }
+
     public List<ExecutionTrade> trades() {
         return List.copyOf(trades);
     }
@@ -318,6 +326,13 @@ public class Order {
     /** Returns the optimistic-lock style version value. */
     public long version() {
         return version;
+    }
+
+    public void bindExchangeOrderId(String exchangeOrderId) {
+        if (exchangeOrderId == null || exchangeOrderId.isBlank()) {
+            throw new IllegalArgumentException("exchangeOrderId must not be blank");
+        }
+        this.exchangeOrderId = exchangeOrderId;
     }
 
     private void ensureStatus(OrderStatus expected) {

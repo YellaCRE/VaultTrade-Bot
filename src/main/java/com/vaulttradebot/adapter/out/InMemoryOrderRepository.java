@@ -4,6 +4,7 @@ import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.domain.execution.Order;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +36,15 @@ public class InMemoryOrderRepository implements OrderRepository {
     public List<Order> findAll() {
         synchronized (orders) {
             return List.copyOf(orders);
+        }
+    }
+
+    @Override
+    public Optional<Order> findById(String orderId) {
+        synchronized (orders) {
+            return orders.stream()
+                    .filter(order -> order.id().equals(orderId))
+                    .findFirst();
         }
     }
 

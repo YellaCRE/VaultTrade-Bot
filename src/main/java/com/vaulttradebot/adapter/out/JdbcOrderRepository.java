@@ -38,7 +38,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 UPDATE orders
                 SET market=?, order_type=?, side=?, quantity=?, price_krw=?, minimum_profit_price_krw=?,
                     strategy_id=?, idempotency_key=?, created_at=?, status=?, executed_quantity=?,
-                    executed_amount_krw=?, version=?
+                    executed_amount_krw=?, exchange_order_id=?, version=?
                 WHERE id=?
                 """,
                 order.market().value(),
@@ -53,6 +53,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 order.status().name(),
                 order.executedQuantity().value(),
                 order.executedAmount().amount(),
+                order.exchangeOrderId(),
                 order.version(),
                 order.id()
         );
@@ -61,8 +62,8 @@ public class JdbcOrderRepository implements OrderRepository {
                     """
                     INSERT INTO orders(
                         id, market, order_type, side, quantity, price_krw, minimum_profit_price_krw,
-                        strategy_id, idempotency_key, created_at, status, executed_quantity, executed_amount_krw, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        strategy_id, idempotency_key, created_at, status, executed_quantity, executed_amount_krw, exchange_order_id, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     order.id(),
                     order.market().value(),
@@ -77,6 +78,7 @@ public class JdbcOrderRepository implements OrderRepository {
                     order.status().name(),
                     order.executedQuantity().value(),
                     order.executedAmount().amount(),
+                    order.exchangeOrderId(),
                     order.version()
             );
         }
@@ -86,6 +88,16 @@ public class JdbcOrderRepository implements OrderRepository {
     @Override
     public List<Order> findAll() {
         return jdbcTemplate.query("SELECT * FROM orders ORDER BY created_at ASC", this::mapOrder);
+    }
+
+    @Override
+    public java.util.Optional<Order> findById(String orderId) {
+        return jdbcTemplate.query(
+                        "SELECT * FROM orders WHERE id=?",
+                        this::mapOrder,
+                        orderId
+                ).stream()
+                .findFirst();
     }
 
     private Order mapOrder(ResultSet rs, int rowNum) throws SQLException {
@@ -105,6 +117,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 OrderStatus.valueOf(rs.getString("status")),
                 Quantity.of(rs.getBigDecimal("executed_quantity")),
                 Money.krw(rs.getBigDecimal("executed_amount_krw")),
+                rs.getString("exchange_order_id"),
                 rs.getLong("version")
         );
     }

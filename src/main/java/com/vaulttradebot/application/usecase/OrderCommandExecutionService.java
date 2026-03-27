@@ -80,9 +80,12 @@ public class OrderCommandExecutionService {
     }
 
     private void executeCancel(OrderCommand command) {
-        exchangeTradingPort.cancelOrder(command.targetOrderId());
         Order existing = findOrder(command.targetOrderId())
                 .orElseThrow(() -> new IllegalStateException("order not found for cancel: " + command.targetOrderId()));
+        if (existing.exchangeOrderId() == null || existing.exchangeOrderId().isBlank()) {
+            throw new IllegalStateException("exchange order id missing for cancel: " + command.targetOrderId());
+        }
+        exchangeTradingPort.cancelOrder(existing.exchangeOrderId());
         if (existing.canCancel()) {
             existing.requestCancel();
             existing.cancel();
@@ -91,9 +94,7 @@ public class OrderCommandExecutionService {
     }
 
     private Optional<Order> findOrder(String orderId) {
-        return orderRepository.findAll().stream()
-                .filter(order -> order.id().equals(orderId))
-                .findFirst();
+        return orderRepository.findById(orderId);
     }
 
     private OrderCommandRequestedPayload parsePayload(String payload) {

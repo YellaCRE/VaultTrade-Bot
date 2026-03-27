@@ -21,6 +21,9 @@ public final class UpbitOrderMapper {
         if (order == null || response == null || eventTime == null) {
             throw new IllegalArgumentException("order, response, eventTime must not be null");
         }
+        if (response.uuid() != null && !response.uuid().isBlank()) {
+            order.bindExchangeOrderId(response.uuid());
+        }
 
         String state = response.state();
         if ("wait".equalsIgnoreCase(state) && order.status() == OrderStatus.NEW) {

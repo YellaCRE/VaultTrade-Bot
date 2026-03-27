@@ -111,8 +111,6 @@ public class OrderPersistenceService {
     }
 
     private Optional<Order> findExistingOrder(String orderId) {
-        return orderRepository.findAll().stream()
-                .filter(existing -> existing.id().equals(orderId))
-                .findFirst();
+        return orderRepository.findById(orderId);
     }
 }

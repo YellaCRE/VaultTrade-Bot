@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(32) NOT NULL,
     executed_quantity NUMERIC(30,8) NOT NULL,
     executed_amount_krw NUMERIC(30,0) NOT NULL,
+    exchange_order_id VARCHAR(128),
     version BIGINT NOT NULL
 );
 

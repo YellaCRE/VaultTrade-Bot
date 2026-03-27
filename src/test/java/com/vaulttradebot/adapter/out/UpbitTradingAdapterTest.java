@@ -51,6 +51,7 @@ class UpbitTradingAdapterTest {
         Order placed = adapter.placeOrder(order);
 
         assertThat(placed.status()).isEqualTo(OrderStatus.OPEN);
+        assertThat(placed.exchangeOrderId()).isEqualTo("upbit-uuid");
         verify(tradingClient).placeLimitOrder(any());
     }
 
@@ -80,6 +81,7 @@ class UpbitTradingAdapterTest {
         Order placed = adapter.placeOrder(order);
 
         assertThat(placed.status()).isEqualTo(OrderStatus.FILLED);
+        assertThat(placed.exchangeOrderId()).isEqualTo("upbit-uuid");
         assertThat(placed.executedQuantity().value()).isEqualByComparingTo("0.02");
     }
 
@@ -100,6 +102,7 @@ class UpbitTradingAdapterTest {
                 OrderStatus.NEW,
                 com.vaulttradebot.domain.common.vo.Quantity.of(BigDecimal.ZERO),
                 Money.krw(BigDecimal.ZERO),
+                null,
                 0L
         );
 
