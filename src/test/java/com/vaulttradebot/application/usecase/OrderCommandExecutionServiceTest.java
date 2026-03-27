@@ -9,15 +9,19 @@ import com.vaulttradebot.adapter.out.InMemoryOutboxRepository;
 import com.vaulttradebot.adapter.out.InMemoryPortfolioRepository;
 import com.vaulttradebot.adapter.out.PaperExchangeTradingAdapter;
 import com.vaulttradebot.application.outbox.OutboxMessage;
+import com.vaulttradebot.application.port.in.BotControlUseCase;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.application.port.out.OutboxPayloadSerializer;
+import com.vaulttradebot.application.query.BotStatusSnapshot;
 import com.vaulttradebot.config.VaultTradingProperties;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.execution.event.OrderDomainEvent;
+import com.vaulttradebot.domain.ops.BotRunState;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +45,7 @@ class OrderCommandExecutionServiceTest {
                 serializer()
         );
         OrderCommandExecutionService service = new OrderCommandExecutionService(
+                inactiveKillSwitch(),
                 new PaperExchangeTradingAdapter(clock, tradingProperties()),
                 orderRepository,
                 orderPersistenceService,
@@ -90,6 +95,7 @@ class OrderCommandExecutionServiceTest {
             }
         };
         OrderCommandExecutionService service = new OrderCommandExecutionService(
+                inactiveKillSwitch(),
                 exchangeTradingPort,
                 orderRepository,
                 orderPersistenceService,
@@ -112,6 +118,104 @@ class OrderCommandExecutionServiceTest {
         assertThat(canceledExchangeOrderId.get()).isEqualTo("upbit-uuid-1");
         assertThat(orderRepository.findById(existing.id())).isPresent();
         assertThat(orderRepository.findById(existing.id()).orElseThrow().status().name()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    void blocksCreateCommandsWhileKillSwitchIsActive() {
+        // Verifies kill switch protection blocks CREATE commands before they reach the exchange adapter.
+        InMemoryOrderRepository orderRepository = new InMemoryOrderRepository();
+        InMemoryOutboxRepository outboxRepository = new InMemoryOutboxRepository();
+        InMemoryPortfolioRepository portfolioRepository = new InMemoryPortfolioRepository();
+        ClockPort clock = () -> Instant.parse("2026-03-27T12:00:00Z");
+        OrderPersistenceService orderPersistenceService = new OrderPersistenceService(
+                orderRepository,
+                outboxRepository,
+                portfolioRepository,
+                new InMemoryOrderOutboxTransactionAdapter(orderRepository, outboxRepository, portfolioRepository),
+                clock,
+                serializer()
+        );
+        OrderCommandExecutionService service = new OrderCommandExecutionService(
+                activeKillSwitch("manual emergency stop", clock.now()),
+                new PaperExchangeTradingAdapter(clock, tradingProperties()),
+                orderRepository,
+                orderPersistenceService,
+                new ObjectMapper()
+        );
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                KillSwitchActiveException.class,
+                () -> service.execute(message(clock.now()))
+        );
+        assertThat(orderRepository.findAll()).isEmpty();
+    }
+
+    private BotControlUseCase inactiveKillSwitch() {
+        return new BotControlUseCase() {
+            @Override
+            public BotStatusSnapshot status() {
+                return new BotStatusSnapshot(BotRunState.STOPPED, null, null, 0, null, null);
+            }
+
+            @Override
+            public BotStatusSnapshot start() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot stop() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot activateKillSwitch(String reason, boolean cancelActiveOrders) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot releaseKillSwitch() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isKillSwitchActive() {
+                return false;
+            }
+        };
+    }
+
+    private BotControlUseCase activeKillSwitch(String reason, Instant activatedAt) {
+        return new BotControlUseCase() {
+            @Override
+            public BotStatusSnapshot status() {
+                return new BotStatusSnapshot(BotRunState.EMERGENCY_STOP, activatedAt, "kill-switch: " + reason, 0, activatedAt, reason);
+            }
+
+            @Override
+            public BotStatusSnapshot start() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot stop() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot activateKillSwitch(String reason, boolean cancelActiveOrders) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BotStatusSnapshot releaseKillSwitch() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isKillSwitchActive() {
+                return true;
+            }
+        };
     }
 
     private OutboxMessage message(Instant now) {

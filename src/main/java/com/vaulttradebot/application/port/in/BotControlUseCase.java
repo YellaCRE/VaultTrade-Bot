@@ -8,4 +8,10 @@ public interface BotControlUseCase {
     BotStatusSnapshot start();
 
     BotStatusSnapshot stop();
+
+    BotStatusSnapshot activateKillSwitch(String reason, boolean cancelActiveOrders);
+
+    BotStatusSnapshot releaseKillSwitch();
+
+    boolean isKillSwitchActive();
 }

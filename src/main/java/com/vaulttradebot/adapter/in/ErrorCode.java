@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT),
     CIRCUIT_BREAKER_OPEN(HttpStatus.SERVICE_UNAVAILABLE),
+    KILL_SWITCH_ACTIVE(HttpStatus.LOCKED),
     UPSTREAM_REQUEST_FAILED(HttpStatus.BAD_GATEWAY),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST),

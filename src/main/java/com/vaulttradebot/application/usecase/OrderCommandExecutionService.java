@@ -3,12 +3,14 @@ package com.vaulttradebot.application.usecase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vaulttradebot.application.outbox.OutboxMessage;
+import com.vaulttradebot.application.port.in.BotControlUseCase;
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.application.port.out.OrderRepository;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
 import com.vaulttradebot.domain.execution.Order;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
 import com.vaulttradebot.domain.execution.vo.StrategyId;
 import com.vaulttradebot.domain.trading.OrderCommand;
 import com.vaulttradebot.domain.trading.vo.OrderCommandType;
@@ -18,17 +20,20 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OrderCommandExecutionService {
+    private final BotControlUseCase botControlUseCase;
     private final ExchangeTradingPort exchangeTradingPort;
     private final OrderRepository orderRepository;
     private final OrderPersistenceService orderPersistenceService;
     private final ObjectMapper objectMapper;
 
     public OrderCommandExecutionService(
+            BotControlUseCase botControlUseCase,
             ExchangeTradingPort exchangeTradingPort,
             OrderRepository orderRepository,
             OrderPersistenceService orderPersistenceService,
             ObjectMapper objectMapper
     ) {
+        this.botControlUseCase = botControlUseCase;
         this.exchangeTradingPort = exchangeTradingPort;
         this.orderRepository = orderRepository;
         this.orderPersistenceService = orderPersistenceService;
@@ -45,12 +50,23 @@ public class OrderCommandExecutionService {
 
         OrderCommandRequestedPayload payload = parsePayload(message.payload());
         OrderCommand command = toCommand(payload);
+        guardKillSwitch(command);
         switch (command.type()) {
             case CREATE -> executeCreate(command, payload);
             case REPLACE -> executeReplace(command, payload);
             case CANCEL -> executeCancel(command);
             default -> throw new IllegalStateException("unsupported order command type: " + command.type());
         }
+    }
+
+    private void guardKillSwitch(OrderCommand command) {
+        if (!botControlUseCase.isKillSwitchActive()) {
+            return;
+        }
+        if (command.type() == OrderCommandType.CANCEL) {
+            return;
+        }
+        throw new KillSwitchActiveException(botControlUseCase.status().killSwitchReason());
     }
 
     private void executeCreate(OrderCommand command, OrderCommandRequestedPayload payload) {

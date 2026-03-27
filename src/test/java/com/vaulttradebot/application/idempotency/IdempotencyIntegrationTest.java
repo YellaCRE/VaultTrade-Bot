@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vaulttradebot.adapter.out.InMemoryOrderOutboxTransactionAdapter;
+import com.vaulttradebot.adapter.out.InMemoryKillSwitchStateRepository;
 import com.vaulttradebot.adapter.out.InMemoryOrderRepository;
 import com.vaulttradebot.adapter.out.InMemoryOutboxRepository;
 import com.vaulttradebot.adapter.out.InMemoryTradingCycleLockAdapter;
@@ -89,6 +90,7 @@ class IdempotencyIntegrationTest {
         botFacadeService = new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
+                new InMemoryKillSwitchStateRepository(),
                 portfolioRepository,
                 orderRepository,
                 notificationPort,
@@ -192,6 +194,7 @@ class IdempotencyIntegrationTest {
         BotFacadeService blockedService = new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
+                new InMemoryKillSwitchStateRepository(),
                 portfolioRepository,
                 orderRepository,
                 notificationPort,

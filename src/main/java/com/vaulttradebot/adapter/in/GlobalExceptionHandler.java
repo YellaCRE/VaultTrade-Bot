@@ -1,6 +1,7 @@
 package com.vaulttradebot.adapter.in;
 
 import com.vaulttradebot.application.idempotency.IdempotencyConflictException;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
 import com.vaulttradebot.domain.resilience.CircuitBreakerBypassException;
 import com.vaulttradebot.domain.resilience.CircuitBreakerOpenException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,18 @@ public class GlobalExceptionHandler {
     ) {
         return buildResponse(
                 ErrorCode.CIRCUIT_BREAKER_OPEN,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(KillSwitchActiveException.class)
+    public ResponseEntity<ErrorResponse> handleKillSwitchActive(
+            KillSwitchActiveException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                ErrorCode.KILL_SWITCH_ACTIVE,
                 exception.getMessage(),
                 request
         );

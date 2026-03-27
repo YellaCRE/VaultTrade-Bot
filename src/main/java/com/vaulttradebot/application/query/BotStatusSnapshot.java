@@ -8,6 +8,8 @@ public record BotStatusSnapshot(
         BotRunState state,
         Instant lastCycleAt,
         String lastError,
-        int consecutiveFailures
+        int consecutiveFailures,
+        Instant killSwitchActivatedAt,
+        String killSwitchReason
 ) {
 }

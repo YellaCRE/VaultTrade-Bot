@@ -10,6 +10,7 @@ import com.vaulttradebot.application.idempotency.IdempotencyConflictException;
 import com.vaulttradebot.application.port.in.BotConfigUseCase;
 import com.vaulttradebot.application.port.in.BotControlUseCase;
 import com.vaulttradebot.application.port.in.RunTradingCycleUseCase;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
 import com.vaulttradebot.domain.resilience.CircuitBreakerOpenException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +59,19 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("CIRCUIT_BREAKER_OPEN"))
                 .andExpect(jsonPath("$.message").value("circuit breaker is open: upbit-trading"));
+    }
+
+    @Test
+    void mapsKillSwitchActiveToLocked() throws Exception {
+        // Verifies kill switch rejections are exposed as a consistent 423 Locked API error.
+        when(runTradingCycleUseCase.runCycle())
+                .thenThrow(new KillSwitchActiveException("manual emergency stop"));
+
+        mockMvc.perform(post("/api/bot/cycle"))
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value("KILL_SWITCH_ACTIVE"))
+                .andExpect(jsonPath("$.message").value("kill switch is active: manual emergency stop"))
+                .andExpect(jsonPath("$.path").value("/api/bot/cycle"));
     }
 
     @Test

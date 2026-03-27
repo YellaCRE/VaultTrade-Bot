@@ -8,10 +8,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.vaulttradebot.application.outbox.OutboxMessage;
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
 import com.vaulttradebot.application.port.out.ClockPort;
+import com.vaulttradebot.application.port.out.KillSwitchStateRepository;
 import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderOutboxTransactionPort;
@@ -23,7 +25,11 @@ import com.vaulttradebot.application.port.out.TradingCycleSnapshotRepository;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Timeframe;
+import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.ops.BotConfig;
+import com.vaulttradebot.domain.ops.BotRunState;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
+import com.vaulttradebot.domain.ops.KillSwitchState;
 import com.vaulttradebot.domain.portfolio.Position;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
 import com.vaulttradebot.domain.trading.OrderActionDecision;
@@ -57,6 +63,8 @@ class BotFacadeServiceTest {
     @Mock
     private MarketDataPort marketDataPort;
     @Mock
+    private KillSwitchStateRepository killSwitchStateRepository;
+    @Mock
     private PortfolioRepository portfolioRepository;
     @Mock
     private OrderRepository orderRepository;
@@ -86,6 +94,7 @@ class BotFacadeServiceTest {
         service = new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
+                killSwitchStateRepository,
                 portfolioRepository,
                 orderRepository,
                 notificationPort,
@@ -100,6 +109,7 @@ class BotFacadeServiceTest {
         );
 
         when(botSettingsRepository.load()).thenReturn(BotConfig.defaultConfig());
+        when(killSwitchStateRepository.load()).thenReturn(Optional.empty());
         when(clockPort.now()).thenReturn(NOW);
         when(marketDataPort.getLastPrice(eq(MARKET))).thenReturn(Money.krw(new BigDecimal("50000000")));
         when(marketDataPort.getRecentCandles(any(), any(), anyInt(), any())).thenReturn(List.of(
@@ -210,5 +220,61 @@ class BotFacadeServiceTest {
         assertThat(result.orderPlaced()).isFalse();
         verify(outboxRepository, never()).save(any(OutboxMessage.class));
         verify(tradingCycleSnapshotRepository, times(1)).save(any(TradingCycleSnapshot.class));
+    }
+
+    @Test
+    void activateKillSwitchMovesBotToEmergencyStopAndEnqueuesCancelCommands() {
+        // Verifies kill switch activation flips the bot into EMERGENCY_STOP and enqueues cancel commands for active orders.
+        Order openOrder = org.mockito.Mockito.mock(Order.class);
+        when(openOrder.canCancel()).thenReturn(true);
+        when(openOrder.exchangeOrderId()).thenReturn("upbit-open-1");
+        when(openOrder.id()).thenReturn("order-1");
+        when(orderRepository.findActiveOrders()).thenReturn(List.of(openOrder));
+
+        var status = service.activateKillSwitch("manual intervention", true);
+
+        assertThat(status.state()).isEqualTo(BotRunState.EMERGENCY_STOP);
+        assertThat(status.killSwitchReason()).isEqualTo("manual intervention");
+        assertThat(status.killSwitchActivatedAt()).isEqualTo(NOW);
+        verify(outboxRepository, times(1)).save(any(OutboxMessage.class));
+        verify(notificationPort, times(1)).notify("Kill switch activated: manual intervention");
+    }
+
+    @Test
+    void runCycleThrowsWhenKillSwitchIsActive() {
+        // Verifies manual cycle execution is blocked immediately while the kill switch is active.
+        service.activateKillSwitch("manual intervention", false);
+
+        assertThrows(KillSwitchActiveException.class, service::runCycle);
+        verify(marketDataPort, never()).getRecentCandles(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void restoresPersistedKillSwitchStateOnStartup() {
+        // Verifies a persisted kill switch state is restored on service startup after a restart.
+        when(killSwitchStateRepository.load()).thenReturn(Optional.of(
+                new KillSwitchState(NOW.minusSeconds(30), "persisted emergency stop")
+        ));
+
+        BotFacadeService restoredService = new BotFacadeService(
+                botSettingsRepository,
+                marketDataPort,
+                killSwitchStateRepository,
+                portfolioRepository,
+                orderRepository,
+                notificationPort,
+                clockPort,
+                orderDecisionService,
+                riskEvaluationService,
+                orderOutboxTransactionPort,
+                outboxRepository,
+                tradingCycleSnapshotRepository,
+                tradingCycleLockPort,
+                strategy
+        );
+
+        assertThat(restoredService.status().state()).isEqualTo(BotRunState.EMERGENCY_STOP);
+        assertThat(restoredService.status().killSwitchReason()).isEqualTo("persisted emergency stop");
+        assertThat(restoredService.isKillSwitchActive()).isTrue();
     }
 }

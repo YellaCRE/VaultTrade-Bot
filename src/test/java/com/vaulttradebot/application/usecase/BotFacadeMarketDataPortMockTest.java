@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vaulttradebot.adapter.out.InMemoryTradingCycleLockAdapter;
+import com.vaulttradebot.adapter.out.InMemoryKillSwitchStateRepository;
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.MarketDataPort;
@@ -278,6 +279,7 @@ class BotFacadeMarketDataPortMockTest {
         return new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
+                new InMemoryKillSwitchStateRepository(),
                 portfolioRepository,
                 orderRepository,
                 notificationPort,

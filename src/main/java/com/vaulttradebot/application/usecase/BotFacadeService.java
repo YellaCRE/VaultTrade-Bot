@@ -8,6 +8,7 @@ import com.vaulttradebot.application.outbox.OutboxMessage;
 import com.vaulttradebot.application.idempotency.IdempotencyHasher;
 import com.vaulttradebot.application.port.out.BotSettingsRepository;
 import com.vaulttradebot.application.port.out.ClockPort;
+import com.vaulttradebot.application.port.out.KillSwitchStateRepository;
 import com.vaulttradebot.application.port.out.MarketDataPort;
 import com.vaulttradebot.application.port.out.NotificationPort;
 import com.vaulttradebot.application.port.out.OrderOutboxTransactionPort;
@@ -28,6 +29,8 @@ import com.vaulttradebot.domain.execution.Order;
 import com.vaulttradebot.domain.execution.vo.OrderStatus;
 import com.vaulttradebot.domain.ops.BotConfig;
 import com.vaulttradebot.domain.ops.BotRunState;
+import com.vaulttradebot.domain.ops.KillSwitchActiveException;
+import com.vaulttradebot.domain.ops.KillSwitchState;
 import com.vaulttradebot.domain.portfolio.Position;
 import com.vaulttradebot.domain.risk.RiskDecision;
 import com.vaulttradebot.domain.risk.RiskEvaluationService;
@@ -77,6 +80,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
 
     private final BotSettingsRepository botSettingsRepository;
     private final MarketDataPort marketDataPort;
+    private final KillSwitchStateRepository killSwitchStateRepository;
     private final PortfolioRepository portfolioRepository;
     private final OrderRepository orderRepository;
     private final NotificationPort notificationPort;
@@ -93,6 +97,8 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     private final AtomicReference<Instant> lastCycleAt = new AtomicReference<>();
     private final AtomicReference<String> lastError = new AtomicReference<>();
     private final AtomicReference<Instant> lastOrderAt = new AtomicReference<>();
+    private final AtomicReference<Instant> killSwitchActivatedAt = new AtomicReference<>();
+    private final AtomicReference<String> killSwitchReason = new AtomicReference<>();
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     private final AtomicLong successfulCycles = new AtomicLong(0);
     private final AtomicLong failedCycles = new AtomicLong(0);
@@ -101,6 +107,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     public BotFacadeService(
             BotSettingsRepository botSettingsRepository,
             MarketDataPort marketDataPort,
+            KillSwitchStateRepository killSwitchStateRepository,
             PortfolioRepository portfolioRepository,
             OrderRepository orderRepository,
             NotificationPort notificationPort,
@@ -115,6 +122,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     ) {
         this.botSettingsRepository = botSettingsRepository;
         this.marketDataPort = marketDataPort;
+        this.killSwitchStateRepository = killSwitchStateRepository;
         this.portfolioRepository = portfolioRepository;
         this.orderRepository = orderRepository;
         this.notificationPort = notificationPort;
@@ -126,6 +134,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         this.tradingCycleSnapshotRepository = tradingCycleSnapshotRepository;
         this.tradingCycleLockPort = tradingCycleLockPort;
         this.strategy = strategy;
+        restoreKillSwitchState();
     }
 
     @Override
@@ -135,7 +144,7 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
 
     @Override
     public BotStatusSnapshot start() {
-        if (state.get() != BotRunState.CIRCUIT_OPEN) {
+        if (state.get() != BotRunState.CIRCUIT_OPEN && state.get() != BotRunState.EMERGENCY_STOP) {
             state.set(BotRunState.RUNNING);
             lastError.set(null);
         }
@@ -146,6 +155,42 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
     public BotStatusSnapshot stop() {
         state.set(BotRunState.STOPPED);
         return snapshot();
+    }
+
+    @Override
+    public BotStatusSnapshot activateKillSwitch(String reason, boolean cancelActiveOrders) {
+        Instant activatedAt = clockPort.now();
+        String resolvedReason = normalizeKillSwitchReason(reason);
+        state.set(BotRunState.EMERGENCY_STOP);
+        killSwitchActivatedAt.set(activatedAt);
+        killSwitchReason.set(resolvedReason);
+        killSwitchStateRepository.save(new KillSwitchState(activatedAt, resolvedReason));
+        lastError.set("kill-switch: " + resolvedReason);
+        notificationPort.notify("Kill switch activated: " + resolvedReason);
+        if (cancelActiveOrders) {
+            enqueueKillSwitchCancels(activatedAt, resolvedReason);
+        }
+        return snapshot();
+    }
+
+    @Override
+    public BotStatusSnapshot releaseKillSwitch() {
+        if (state.get() == BotRunState.EMERGENCY_STOP) {
+            state.set(BotRunState.STOPPED);
+        }
+        killSwitchActivatedAt.set(null);
+        killSwitchReason.set(null);
+        killSwitchStateRepository.clear();
+        if (lastError.get() != null && lastError.get().startsWith("kill-switch: ")) {
+            lastError.set(null);
+        }
+        notificationPort.notify("Kill switch released");
+        return snapshot();
+    }
+
+    @Override
+    public boolean isKillSwitchActive() {
+        return state.get() == BotRunState.EMERGENCY_STOP;
     }
 
     @Override
@@ -163,6 +208,10 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
         // Step 1) Mark cycle start time for latency and status tracking.
         Instant cycleStart = clockPort.now();
         lastCycleAt.set(cycleStart);
+
+        if (isKillSwitchActive()) {
+            throw new KillSwitchActiveException(killSwitchReason.get());
+        }
 
         // Step 2) Skip early when bot is not in RUNNING state.
         if (state.get() != BotRunState.RUNNING) {
@@ -821,6 +870,90 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 ));
     }
 
+    private void enqueueKillSwitchCancels(Instant activatedAt, String reason) {
+        List<Order> cancelableOrders = orderRepository.findActiveOrders().stream()
+                .filter(Order::canCancel)
+                .filter(order -> order.exchangeOrderId() != null && !order.exchangeOrderId().isBlank())
+                .toList();
+        if (cancelableOrders.isEmpty()) {
+            return;
+        }
+
+        orderOutboxTransactionPort.execute(() -> {
+            for (Order order : cancelableOrders) {
+                String cycleId = buildKillSwitchCycleId(order.id(), activatedAt);
+                String eventId = buildOutboxEventId(cycleId, "CANCEL");
+                outboxRepository.save(buildKillSwitchCancelEvent(
+                        eventId,
+                        cycleId,
+                        order.id(),
+                        activatedAt,
+                        reason
+                ));
+            }
+        });
+    }
+
+    private OutboxMessage buildKillSwitchCancelEvent(
+            String eventId,
+            String cycleId,
+            String targetOrderId,
+            Instant activatedAt,
+            String reason
+    ) {
+        String payload = "{"
+                + "\"cycleId\":\"" + escape(cycleId) + "\","
+                + "\"strategyId\":\"KillSwitch\","
+                + "\"dataTimestamp\":\"" + activatedAt + "\","
+                + "\"decision\":\"CANCEL\","
+                + "\"reason\":\"" + escape(reason) + "\","
+                + "\"commandType\":\"CANCEL\","
+                + "\"targetOrderId\":\"" + escape(targetOrderId) + "\","
+                + "\"market\":\"\","
+                + "\"side\":\"\","
+                + "\"orderType\":\"\","
+                + "\"price\":\"\","
+                + "\"quantity\":\"\","
+                + "\"clientOrderId\":\"\""
+                + "}";
+
+        return new OutboxMessage(
+                eventId,
+                "KillSwitch",
+                cycleId,
+                "OrderCommandRequested",
+                payload,
+                1,
+                activatedAt,
+                activatedAt,
+                null,
+                0,
+                null,
+                activatedAt,
+                null
+        );
+    }
+
+    private String buildKillSwitchCycleId(String orderId, Instant activatedAt) {
+        return IdempotencyHasher.sha256("kill-switch|" + orderId + "|" + activatedAt);
+    }
+
+    private String normalizeKillSwitchReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "manual kill switch activation";
+        }
+        return reason.trim();
+    }
+
+    private void restoreKillSwitchState() {
+        killSwitchStateRepository.load().ifPresent(savedState -> {
+            state.set(BotRunState.EMERGENCY_STOP);
+            killSwitchActivatedAt.set(savedState.activatedAt());
+            killSwitchReason.set(savedState.reason());
+            lastError.set("kill-switch: " + savedState.reason());
+        });
+    }
+
     private BotStatusSnapshot snapshot() {
         String error = lastError.get();
         if (lockSkippedCycles.get() > 0 && (error == null || error.isBlank())) {
@@ -830,7 +963,9 @@ public class BotFacadeService implements BotControlUseCase, BotConfigUseCase, Ru
                 state.get(),
                 lastCycleAt.get(),
                 error,
-                consecutiveFailures.get()
+                consecutiveFailures.get(),
+                killSwitchActivatedAt.get(),
+                killSwitchReason.get()
         );
     }
 }

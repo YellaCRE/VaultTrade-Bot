@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS portfolio_positions (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS bot_runtime_state (
+    state_key VARCHAR(64) PRIMARY KEY,
+    activated_at TIMESTAMP NOT NULL,
+    reason CLOB NOT NULL
+);
+
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS payload_version INT NOT NULL DEFAULT 1;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS last_error CLOB;

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.vaulttradebot.adapter.out.InMemoryOrderOutboxTransactionAdapter;
+import com.vaulttradebot.adapter.out.InMemoryKillSwitchStateRepository;
 import com.vaulttradebot.adapter.out.InMemoryOrderRepository;
 import com.vaulttradebot.adapter.out.InMemoryOutboxRepository;
 import com.vaulttradebot.adapter.out.InMemoryTradingCycleLockAdapter;
@@ -81,6 +82,7 @@ class BotFacadeOrderCreationFlowTest {
         service = new BotFacadeService(
                 botSettingsRepository,
                 marketDataPort,
+                new InMemoryKillSwitchStateRepository(),
                 portfolioRepository,
                 orderRepository,
                 notificationPort,

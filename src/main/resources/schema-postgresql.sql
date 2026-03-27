@@ -66,6 +66,12 @@ CREATE TABLE IF NOT EXISTS portfolio_positions (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS bot_runtime_state (
+    state_key VARCHAR(64) PRIMARY KEY,
+    activated_at TIMESTAMPTZ NOT NULL,
+    reason TEXT NOT NULL
+);
+
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS executed_fee_krw NUMERIC(30,0) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_orders_market_created_at ON orders (market, created_at DESC);
