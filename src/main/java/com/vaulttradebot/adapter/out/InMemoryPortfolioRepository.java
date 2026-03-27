@@ -48,4 +48,13 @@ public class InMemoryPortfolioRepository implements PortfolioRepository {
         });
         return Position.restore(next);
     }
+
+    ConcurrentHashMap<String, PositionSnapshot> snapshot() {
+        return new ConcurrentHashMap<>(positions);
+    }
+
+    void restore(ConcurrentHashMap<String, PositionSnapshot> snapshot) {
+        positions.clear();
+        positions.putAll(snapshot);
+    }
 }
