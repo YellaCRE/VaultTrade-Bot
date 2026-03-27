@@ -12,6 +12,7 @@ import com.vaulttradebot.application.outbox.OutboxMessage;
 import com.vaulttradebot.application.port.out.ClockPort;
 import com.vaulttradebot.application.port.out.ExchangeTradingPort;
 import com.vaulttradebot.application.port.out.OutboxPayloadSerializer;
+import com.vaulttradebot.config.VaultTradingProperties;
 import com.vaulttradebot.domain.common.vo.Market;
 import com.vaulttradebot.domain.common.vo.Money;
 import com.vaulttradebot.domain.common.vo.Side;
@@ -40,7 +41,7 @@ class OrderCommandExecutionServiceTest {
                 serializer()
         );
         OrderCommandExecutionService service = new OrderCommandExecutionService(
-                new PaperExchangeTradingAdapter(),
+                new PaperExchangeTradingAdapter(clock, tradingProperties()),
                 orderRepository,
                 orderPersistenceService,
                 new ObjectMapper()
@@ -193,5 +194,11 @@ class OrderCommandExecutionServiceTest {
                 return 1;
             }
         };
+    }
+
+    private VaultTradingProperties tradingProperties() {
+        VaultTradingProperties properties = new VaultTradingProperties();
+        properties.getPaper().setFillOnPlace(true);
+        return properties;
     }
 }

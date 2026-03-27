@@ -9,6 +9,7 @@ public class VaultTradingProperties {
     // Separate trading provider selection from market-data selection so paper/live execution can be switched independently.
     private String provider = "paper";
     private final Upbit upbit = new Upbit();
+    private final Paper paper = new Paper();
 
     public String getProvider() {
         return provider;
@@ -20,6 +21,10 @@ public class VaultTradingProperties {
 
     public Upbit getUpbit() {
         return upbit;
+    }
+
+    public Paper getPaper() {
+        return paper;
     }
 
     public static class Upbit {
@@ -93,6 +98,36 @@ public class VaultTradingProperties {
 
         public void setRateLimitDelayMs(long rateLimitDelayMs) {
             this.rateLimitDelayMs = rateLimitDelayMs;
+        }
+    }
+
+    public static class Paper {
+        private boolean fillOnPlace = true;
+        private java.math.BigDecimal feeRate = java.math.BigDecimal.ZERO;
+        private java.math.BigDecimal slippageBps = java.math.BigDecimal.ZERO;
+
+        public boolean isFillOnPlace() {
+            return fillOnPlace;
+        }
+
+        public void setFillOnPlace(boolean fillOnPlace) {
+            this.fillOnPlace = fillOnPlace;
+        }
+
+        public java.math.BigDecimal getFeeRate() {
+            return feeRate;
+        }
+
+        public void setFeeRate(java.math.BigDecimal feeRate) {
+            this.feeRate = feeRate;
+        }
+
+        public java.math.BigDecimal getSlippageBps() {
+            return slippageBps;
+        }
+
+        public void setSlippageBps(java.math.BigDecimal slippageBps) {
+            this.slippageBps = slippageBps;
         }
     }
 }

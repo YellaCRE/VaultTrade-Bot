@@ -1,6 +1,10 @@
 vault:
   trading:
     provider: paper
+    paper:
+      fill-on-place: true
+      fee-rate: 0
+      slippage-bps: 0
     upbit:
       base-url: https://api.upbit.com
       access-key: ${UPBIT_ACCESS_KEY:}
